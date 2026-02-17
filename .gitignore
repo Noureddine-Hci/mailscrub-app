@@ -1,0 +1,49 @@
+# ============================================================
+# MailScrub.app — .gitignore
+# ============================================================
+
+# ── Python bytecode & caches ──────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ── Virtual environments ──────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Distribution / packaging ─────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# ── Environment variables & secrets ──────────────────────────
+# 🚨 CRITIQUE : Ne JAMAIS commit ce fichier !
+.env
+.env.local
+.env.production
+
+# ── IDE / Editor ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS generated files ───────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing & Coverage ───────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
