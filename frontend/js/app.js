@@ -147,7 +147,7 @@ function renderDashboard(data, isReal = false) {
 
     // Categories chart
     renderCategoriesChart(data.categories);
-    renderStats(data.stats);
+    // renderStats removed (undefined)
     renderSuggestions(data.quick_actions);
     renderSpaceSummary(data);
 
