@@ -13,8 +13,9 @@ import os
 import random
 import re
 import time
+import traceback
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from email.utils import parseaddr
 
@@ -25,6 +26,7 @@ from email.utils import parseaddr
 class AnalysisResult:
     """Résultat complet de l'analyse de la boîte mail."""
 
+    mode: str
     health_score: int
     total_emails: int
     categories: dict[str, int]
@@ -137,25 +139,31 @@ class MailAnalyzer:
 
     # ── REAL GMAIL ANALYSIS ───────────────────────────────────
 
-    def analyze_real(self, service) -> AnalysisResult:
+    def analyze_real(self, service, limit: int = 1000):
         """
         Analyse la vraie boîte mail via l'API Gmail.
-
-        1. Liste les messages récents (max 500)
-        2. Récupère les headers (From, Subject)
-        3. Catégorise chaque expéditeur
-        4. Calcule le score et les recommandations
+        Générateur qui yield des statuts de progression puis le résultat final.
         """
-        # Step 1: List messages (derniers 1000 mails)
+        # yield progress
+        yield {"type": "progress", "percent": 2, "message": "Récupération de la liste des emails..."}
+
+        # Step 1: List messages
         messages = []
         next_page_token = None
+        
+        # Max fetch limit (fetch d'IDs est rapide, on peut en prendre un peu plus pour filtrer)
+        fetch_limit = limit
 
-        while len(messages) < 1000:
-            results = service.users().messages().list(
-                userId="me",
-                maxResults=100,
-                pageToken=next_page_token,
-            ).execute()
+        while len(messages) < fetch_limit:
+            try:
+                results = service.users().messages().list(
+                    userId="me",
+                    maxResults=100,
+                    pageToken=next_page_token,
+                ).execute()
+            except Exception as e:
+                print(f"[WARN] Error fetching message list: {e}")
+                break
 
             batch = results.get("messages", [])
             if not batch:
@@ -163,14 +171,20 @@ class MailAnalyzer:
 
             messages.extend(batch)
             next_page_token = results.get("nextPageToken")
+            
+            # Progress update during fetch (2-10%)
+            fetched = len(messages)
+            pct = 2 + int((fetched / fetch_limit) * 8)
+            yield {"type": "progress", "percent": min(10, pct), "message": f"Identifiés : {fetched} emails..."}
 
             if not next_page_token:
                 break
 
         total_emails = len(messages)
+        yield {"type": "progress", "percent": 10, "message": f"{total_emails} emails identifiés. Analyse du contenu..."}
 
         if total_emails == 0:
-            return AnalysisResult(
+            empty_result = AnalysisResult(
                 health_score=100,
                 total_emails=0,
                 categories={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
@@ -185,157 +199,240 @@ class MailAnalyzer:
                 },
                 quick_actions=[],
             )
+            yield {"type": "complete", "data": asdict(empty_result)}
+            return
 
-        # Step 2: Get headers for each message
-        sender_counter: Counter = Counter()
-        sender_names: dict[str, str] = {}
-        sender_categories: dict[str, str] = {}
-        sender_message_ids: dict[str, list[str]] = {}  # email → [msg_id, ...]
-        sender_sizes: dict[str, int] = {}  # email → total size in bytes
-        sender_unsubscribe: dict[str, str] = {}  # email → List-Unsubscribe header
-        sender_old_sizes: dict[str, int] = {}  # email → size of emails > 1 year
-        sender_heavy_sizes: dict[str, int] = {}  # email → size of emails > 5MB
+        # Step 2: Get headers for each message (BATCHED)
+        # ----------------------------------------------------
+        # Optimization: Use new_batch_http_request to fetch 50 messages at once.
+        # This reduces round-trips significantly (1000 requests -> 20 batches).
 
         current_time = time.time()
         one_year_ago = current_time - (365 * 24 * 3600)
         HEAVY_THRESHOLD = 5 * 1024 * 1024  # 5 MB
 
-        # Process in chunks of 50
-        for i in range(0, min(total_emails, 200), 1):
-            msg_id = messages[i]["id"]
-            try:
-                msg = service.users().messages().get(
-                    userId="me",
-                    id=msg_id,
-                    format="metadata",
-                    metadataHeaders=["From", "Subject", "List-Unsubscribe"],
-                ).execute()
+        # Initialize collections BEFORE the callback
+        sender_counter: Counter = Counter()
+        sender_names: dict[str, str] = {}
+        sender_categories: dict[str, str] = {}
+        sender_message_ids: dict[str, list[str]] = {}
+        sender_messages_details: dict[str, list[dict]] = {}
+        sender_sizes: dict[str, int] = {}
+        sender_unsubscribe: dict[str, str] = {}
+        sender_old_sizes: dict[str, int] = {}
+        sender_heavy_sizes: dict[str, int] = {}
 
-                internal_date = int(msg.get("internalDate", 0)) / 1000
+        BATCH_SIZE = 50
+        effective_limit = min(total_emails, limit)
+        proccessed_count = 0
 
-                headers = {
-                    h["name"]: h["value"]
-                    for h in msg.get("payload", {}).get("headers", [])
-                }
+        # Define callback for batch results
+        def batch_callback(request_id, response, exception):
+            nonlocal proccessed_count
+            if exception:
+                # Just ignore errors for individual messages to keep going
+                print(f"[WARN] Batch item exception: {exception}")
+                return
+            
+            nonlocal sender_counter, sender_names, sender_categories, sender_message_ids
+            nonlocal sender_messages_details, sender_sizes, sender_unsubscribe, sender_old_sizes, sender_heavy_sizes
 
-                from_header = headers.get("From", "")
-                subject = headers.get("Subject", "")
+            msg = response
+            msg_id = msg.get("id")
+            internal_date = int(msg.get("internalDate", 0)) / 1000
 
-                # Parse email address
-                name, email_addr = parseaddr(from_header)
-                email_addr = email_addr.lower().strip()
+            headers = {
+                h["name"]: h["value"]
+                for h in msg.get("payload", {}).get("headers", [])
+            }
 
-                if not email_addr:
-                    continue
+            from_header = headers.get("From", "")
+            subject = headers.get("Subject", "")
 
-                sender_counter[email_addr] += 1
+            # Parse email address
+            name, email_addr = parseaddr(from_header)
+            email_addr = email_addr.lower().strip()
 
-                # Track message IDs for bulk actions
-                sender_message_ids.setdefault(email_addr, []).append(msg_id)
+            if not email_addr:
+                return
 
-                # Track message size
-                msg_size = msg.get("sizeEstimate", 0)
-                sender_sizes[email_addr] = sender_sizes.get(email_addr, 0) + msg_size
+            sender_counter[email_addr] += 1
+            sender_message_ids.setdefault(email_addr, []).append(msg_id)
 
-                # Track old emails
-                if internal_date < one_year_ago:
-                    sender_old_sizes[email_addr] = (
-                        sender_old_sizes.get(email_addr, 0) + msg_size
-                    )
+            # Track message size
+            msg_size = int(msg.get("sizeEstimate", 0))
+            sender_sizes[email_addr] = sender_sizes.get(email_addr, 0) + msg_size
 
-                # Track heavy emails
-                if msg_size > HEAVY_THRESHOLD:
-                    sender_heavy_sizes[email_addr] = (
-                        sender_heavy_sizes.get(email_addr, 0) + msg_size
-                    )
+            # Track old emails
+            if internal_date < one_year_ago:
+                sender_old_sizes[email_addr] = (
+                    sender_old_sizes.get(email_addr, 0) + msg_size
+                )
 
-                if email_addr not in sender_names:
-                    sender_names[email_addr] = name or email_addr.split("@")[0]
+            # Track heavy emails
+            if msg_size > HEAVY_THRESHOLD:
+                sender_heavy_sizes[email_addr] = (
+                    sender_heavy_sizes.get(email_addr, 0) + msg_size
+                )
 
-                if email_addr not in sender_categories:
-                    sender_categories[email_addr] = _categorize_sender(
-                        email_addr, name, subject
-                    )
+            if email_addr not in sender_names:
+                sender_names[email_addr] = name or email_addr.split("@")[0]
 
-                # Track List-Unsubscribe header
-                unsub = headers.get("List-Unsubscribe", "")
-                if unsub and email_addr not in sender_unsubscribe:
-                    sender_unsubscribe[email_addr] = unsub
+            if email_addr not in sender_categories:
+                sender_categories[email_addr] = _categorize_sender(
+                    email_addr, name, subject
+                )
 
-            except Exception:
-                continue
+            # Track List-Unsubscribe header
+            unsub = headers.get("List-Unsubscribe", "")
+            if unsub and email_addr not in sender_unsubscribe:
+                sender_unsubscribe[email_addr] = unsub
 
-        # Step 3: Build results
-        category_counts = {"newsletter": 0, "notification": 0, "human": 0, "spam": 0}
-
-        senders_list = []
-        for email_addr, count in sender_counter.most_common():
-            cat = sender_categories.get(email_addr, "human")
-            category_counts[cat] = category_counts.get(cat, 0) + count
-
-            senders_list.append({
-                "email": email_addr,
-                "name": sender_names.get(email_addr, email_addr),
-                "category": cat,
-                "count": count,
-                "message_ids": sender_message_ids.get(email_addr, []),
-                "size_bytes": sender_sizes.get(email_addr, 0),
-                "old_bytes": sender_old_sizes.get(email_addr, 0),
-                "heavy_bytes": sender_heavy_sizes.get(email_addr, 0),
-                "unsubscribe_link": sender_unsubscribe.get(email_addr, ""),
+            # Track details
+            if email_addr not in sender_messages_details:
+                sender_messages_details[email_addr] = []
+            
+            sender_messages_details[email_addr].append({
+                "id": msg_id,
+                "subject": subject or "(Sans objet)",
+                "date": int(internal_date), # timestamp in seconds
+                "size": msg_size,
             })
 
-        # Percentages
-        total_categorized = sum(category_counts.values()) or 1
-        category_pct = {
-            cat: round((count / total_categorized) * 100, 1)
-            for cat, count in category_counts.items()
-        }
+            proccessed_count += 1
 
-        # Score
-        health_score = self._calculate_score(category_pct)
+        # Execute batches
+        print(f"[DEBUG] Starting batch processing for {effective_limit} emails with batch size {BATCH_SIZE}")
+        for i in range(0, effective_limit, BATCH_SIZE):
+            batch = service.new_batch_http_request(callback=batch_callback)
+            
+            # Add up to BATCH_SIZE requests
+            chunk_end = min(i + BATCH_SIZE, effective_limit)
+            chunk = messages[i:chunk_end]
+            
+            print(f"[DEBUG] Preparing batch {i}-{chunk_end}")
+            
+            for msg_meta in chunk:
+                batch.add(service.users().messages().get(
+                    userId="me",
+                    id=msg_meta["id"],
+                    format="metadata",
+                    metadataHeaders=["From", "Subject", "List-Unsubscribe"],
+                ))
+            
+            try:
+                print(f"[DEBUG] Executing batch {i}...")
+                batch.execute()
+                print(f"[DEBUG] Batch {i} executed. Processed count so far: {proccessed_count}")
+            except Exception as e:
+                print(f"[ERROR] Batch execute failed at index {i}: {e}")
+                traceback.print_exc()
 
-        # Stats
-        newsletter_sources = sum(
-            1 for s in senders_list if s["category"] == "newsletter"
-        )
-        total_size_bytes = sum(s.get("size_bytes", 0) for s in senders_list)
-        unique_senders = len(sender_counter)
+            # Yield progress
+            pct = 10 + int((chunk_end / effective_limit) * 80)
+            yield {"type": "progress", "percent": pct, "message": f"Analyse par lots : {chunk_end}/{effective_limit}..."}
 
-        stats = {
-            "newsletter_sources": newsletter_sources,
-            "estimated_unread": int(total_emails * 0.4),  # Placeholder
-            "unique_senders": unique_senders,
-            "total_size_bytes": total_size_bytes,
-        }
+        yield {"type": "progress", "percent": 90, "message": "Calcul des statistiques..."}
 
-        # Recommendations
-        recommendations = self._generate_recommendations(category_pct, senders_list)
-        quick_actions = self._generate_smart_suggestions(senders_list, stats)
+        try:
+            # Step 3: Build results
+            category_counts = {"newsletter": 0, "notification": 0, "human": 0, "spam": 0}
 
-        return AnalysisResult(
-            health_score=health_score,
-            total_emails=total_emails,
-            categories=category_counts,
-            category_percentages=category_pct,
-            top_senders=senders_list[:15],
-            recommendations=recommendations,
-            stats=stats,
-            quick_actions=quick_actions,
-        )
+            senders_list = []
+            for email_addr, count in sender_counter.most_common():
+                cat = sender_categories.get(email_addr, "human")
+                category_counts[cat] = category_counts.get(cat, 0) + count
+
+                # Sort messages by date desc
+                details = sender_messages_details.get(email_addr, [])
+                details.sort(key=lambda x: x["date"], reverse=True)
+
+                senders_list.append({
+                    "email": email_addr,
+                    "name": sender_names.get(email_addr, email_addr),
+                    "category": cat,
+                    "count": count,
+                    "message_ids": sender_message_ids.get(email_addr, []),
+                    "messages": details,
+                    "size_bytes": sender_sizes.get(email_addr, 0),
+                    "old_bytes": sender_old_sizes.get(email_addr, 0),
+                    "heavy_bytes": sender_heavy_sizes.get(email_addr, 0),
+                    "unsubscribe_link": sender_unsubscribe.get(email_addr, ""),
+                })
+
+            # Percentages
+            total_categorized = sum(category_counts.values()) or 1
+            category_pct = {
+                cat: round((count / total_categorized) * 100, 1)
+                for cat, count in category_counts.items()
+            }
+
+            # Score
+            health_score = self._calculate_score(category_pct)
+
+            # Stats
+            newsletter_sources = sum(
+                1 for s in senders_list if s["category"] == "newsletter"
+            )
+            total_size_bytes = sum(s.get("size_bytes", 0) for s in senders_list)
+            unique_senders = len(sender_counter)
+
+            stats = {
+                "newsletter_sources": newsletter_sources,
+                "estimated_unread": int(total_emails * 0.4),  # Placeholder
+                "unique_senders": unique_senders,
+                "total_size_bytes": total_size_bytes,
+            }
+
+            # Recommendations
+            recommendations = self._generate_recommendations(category_pct, senders_list)
+            quick_actions = self._generate_smart_suggestions(senders_list, stats)
+            
+            yield {"type": "progress", "percent": 100, "message": "Terminé !"}
+
+            result = AnalysisResult(
+                mode="gmail",
+                health_score=health_score,
+                total_emails=total_emails,
+                categories=category_counts,
+                category_percentages=category_pct,
+                top_senders=senders_list,
+                recommendations=recommendations,
+                stats=stats,
+                quick_actions=quick_actions,
+            )
+            
+            yield {"type": "complete", "data": asdict(result)}
+
+        except Exception as e:
+            print(f"[ERROR] Result generation failed: {e}")
+            traceback.print_exc()
+            yield {"type": "error", "message": f"Erreur lors du calcul des résultats : {str(e)}"}
 
     # ── DEMO ANALYSIS ─────────────────────────────────────────
 
-    def analyze_demo(self) -> AnalysisResult:
+    def analyze_demo(self):
         """
         Génère une analyse réaliste avec des données de démonstration.
-        Utilisé pour tester le dashboard avant l'intégration OAuth.
+        (Version Streamée pour la démo)
         """
+        yield {"type": "progress", "percent": 5, "message": "Chargement des données démo..."}
+        time.sleep(0.5)
+
         senders_with_counts = []
         total = 0
         category_counts = {"newsletter": 0, "notification": 0, "human": 0, "spam": 0}
 
-        for sender in DEMO_SENDERS:
+        # Simulate progress
+        total_senders = len(DEMO_SENDERS)
+        for i, sender in enumerate(DEMO_SENDERS):
+            # Fake delay
+            time.sleep(0.05)
+            
+            if i % 5 == 0:
+                pct = 5 + int((i / total_senders) * 85)
+                yield {"type": "progress", "percent": pct, "message": f"Analyse de {sender['name']}..."}
+
             if sender["category"] == "newsletter":
                 count = random.randint(25, 120)
             elif sender["category"] == "notification":
@@ -350,16 +447,32 @@ class MailAnalyzer:
             if sender["category"] in ("newsletter", "spam"):
                 unsub = f"<https://unsubscribe.example.com/{sender['email'].split('@')[0]}>"
 
+            # Fake messages details
+            fake_messages = []
+            now = time.time()
+            for _ in range(count):
+                fake_messages.append({
+                    "id": f"fake_{random.randint(1000, 9999)}",
+                    "subject": f"Demo Subject {random.randint(1, 100)}",
+                    "date": int(now - random.randint(0, 31536000)),
+                    "size": int(size / count)
+                })
+            
+            fake_messages.sort(key=lambda x: x["date"], reverse=True)
+
             senders_with_counts.append({
                 **sender,
                 "count": count,
                 "message_ids": [],
+                "messages": fake_messages,
                 "size_bytes": size,
                 "unsubscribe_link": unsub,
             })
             total += count
             category_counts[sender["category"]] += count
 
+        yield {"type": "progress", "percent": 95, "message": "Calcul final..."}
+        
         senders_with_counts.sort(key=lambda x: x["count"], reverse=True)
 
         category_pct = {
@@ -392,17 +505,22 @@ class MailAnalyzer:
             )
 
         quick_actions = self._generate_smart_suggestions(senders_with_counts, stats)
+        
+        yield {"type": "progress", "percent": 100, "message": "Terminé !"}
 
-        return AnalysisResult(
+        result = AnalysisResult(
+            mode="demo",
             health_score=health_score,
             total_emails=total,
             categories=category_counts,
             category_percentages=category_pct,
-            top_senders=senders_with_counts[:15],
+            top_senders=senders_with_counts,
             recommendations=recommendations,
             stats=stats,
             quick_actions=quick_actions,
         )
+
+        yield {"type": "complete", "data": asdict(result)}
 
     # ── SCORE CALCULATION ─────────────────────────────────────
 

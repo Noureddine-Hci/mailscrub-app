@@ -4,6 +4,24 @@ Toutes les modifications notables de ce projet seront documentées ici.
 
 ---
 
+## [v1.3.0] — 2026-02-18
+
+### 🐛 Correctifs Critiques (Infinite Loading & UI)
+
+#### Corrigé
+
+- **[CRITICAL] Infinite Loading** : Correction d'un crash silencieux dans le backend (`NameError: name 'asdict' is not defined`) qui bloquait l'application à 100%. Ajout des imports `asdict` et `traceback`.
+- **[UI] Actions manquantes** : Restauration des boutons d'action (suppression, désabonnement) qui avaient disparu suite à un typage strict manquant (`mode: "gmail"`).
+- **[UI] Progress Bar** : Refonte de l'affichage de la barre de progression pour garantir qu'elle atteigne 100% visuellement.
+- **[PERF] Batch Processing** : Les headers des emails sont maintenant récupérés par lots de 50 (`batch.new_batch_http_request`), divisant par 50 le nombre d'appels API.
+
+#### Ajouté
+
+- **Logger Visuel** : (Temporaire) Ajout d'une boîte de debug à l'écran pour diagnostiquer les erreurs client sans console. (Retiré en prod).
+- **Gestion d'erreurs** : Meilleure capture des exceptions dans `analyzer.py` avec feedback utilisateur.
+
+---
+
 ## [v1.0.0] — 2026-02-18
 
 ### 🎉 Première release — MVP complet

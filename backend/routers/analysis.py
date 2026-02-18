@@ -11,7 +11,13 @@ sinon retourne les données de démonstration.
 import traceback
 from dataclasses import asdict
 
-from fastapi import APIRouter, Request
+import urllib.request
+import urllib.error
+import ssl
+from email.message import EmailMessage
+import base64
+
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from backend.src.services.analyzer import MailAnalyzer
@@ -64,15 +70,20 @@ def _get_gmail_service(request: Request):
     return service, None
 
 
+import json
+from starlette.concurrency import iterate_in_threadpool
+from fastapi.responses import StreamingResponse
+
 @router.get("/analyze")
-async def analyze_mailbox(request: Request):
+async def analyze_mailbox(request: Request, limit: int = 1000):
     """
     Lance l'analyse de la boîte mail.
-
-    Si l'utilisateur est connecté via OAuth, utilise les vraies données Gmail.
-    Sinon, retourne les données de démonstration.
+    Retourne un stream NDJSON avec la progression puis le résultat.
     """
     creds_data = request.session.get("credentials")
+    
+    # Prépare le générateur (sync) approprié
+    generator = None
 
     if creds_data:
         try:
@@ -80,32 +91,35 @@ async def analyze_mailbox(request: Request):
             if err:
                 return err
 
-            # Analyze real emails
-            result = analyzer.analyze_real(service)
-            data = asdict(result)
-            data["mode"] = "gmail"
-            return data
+            # Analyze real emails (returns a generator)
+            generator = analyzer.analyze_real(service, limit=limit)
 
         except Exception as e:
-            # Log the full error for debugging
             print(f"[ERROR] Gmail API failed: {e}")
             traceback.print_exc()
-
-            # Return a clear error with fallback suggestion
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": True,
-                    "message": f"Erreur API Gmail: {str(e)}",
-                    "fallback": "demo",
-                },
+                    "error": True, 
+                    "message": f"Erreur API Gmail: {str(e)}", 
+                    "fallback": "demo"
+                }
             )
     else:
         # Fallback to demo data
-        result = analyzer.analyze_demo()
-        data = asdict(result)
-        data["mode"] = "demo"
-        return data
+        generator = analyzer.analyze_demo()
+
+    # Wrapper async pour streamer le générateur sync sans bloquer
+    async def event_generator():
+        try:
+            async for item in iterate_in_threadpool(generator):
+                yield json.dumps(item) + "\n"
+        except Exception as e:
+            print(f"[ERROR] Stream failed: {e}")
+            traceback.print_exc()
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 
 @router.post("/delete")
@@ -167,3 +181,87 @@ async def delete_emails(request: Request):
             content={"error": True, "message": f"Erreur suppression: {str(e)}"},
         )
 
+@router.post("/unsubscribe")
+async def unsubscribe(request: Request):
+    """
+    Tente de se désabonner automatiquement.
+    - Si mailto: envoie un mail.
+    - Si http: visite le lien (GET).
+    """
+    service, err = _get_gmail_service(request)
+    if err:
+        return err
+
+    try:
+        body = await request.json()
+        link = body.get("link", "")
+        email_addr = body.get("email", "")
+
+        if not link:
+            return JSONResponse(status_code=400, content={"error": True, "message": "Lien manquant"})
+
+        # CAS 1: Mailto
+        if "mailto:" in link:
+            # Format: mailto:unsubscribe@dom.com?subject=Unsubscribe
+            # Basic parsing
+            clean_link = link.replace("mailto:", "").strip()
+            target_email = clean_link.split("?")[0]
+            
+            subject = "Unsubscribe"
+            if "subject=" in link:
+                subject = link.split("subject=")[1].split("&")[0]
+                import urllib.parse
+                subject = urllib.parse.unquote(subject)
+
+            # Create message
+            message = EmailMessage()
+            message.set_content("Please unsubscribe me.")
+            message["To"] = target_email
+            message["From"] = "me"
+            message["Subject"] = subject
+
+            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            
+            create_message = {"raw": encoded_message}
+            service.users().messages().send(userId="me", body=create_message).execute()
+            
+            return {"success": True, "method": "email", "message": "Email de désabonnement envoyé."}
+
+        # CAS 2: HTTP
+        elif link.startswith("http"):
+            try:
+                # User-Agent standard pour ne pas être bloqué
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                req = urllib.request.Request(link, headers=headers)
+                
+                # Ignore SSL errors (fixes many false negatives)
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                
+                with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+                    code = response.getcode()
+                    if 200 <= code < 300:
+                        return {"success": True, "method": "http", "message": "Lien visité avec succès."}
+                    else:
+                        return JSONResponse(
+                            status_code=400, 
+                            content={"error": True, "method": "http", "message": f"Le lien a renvoyé le code {code}", "fallback": True}
+                        )
+            except Exception as e:
+                print(f"[WARN] HTTP Unsubscribe failed: {e}")
+                return JSONResponse(
+                    status_code=400, 
+                    content={"error": True, "method": "http", "message": "Impossible d'accéder au lien automatiquement.", "fallback": True}
+                )
+
+        else:
+             return JSONResponse(status_code=400, content={"error": True, "message": "Type de lien non supporté"})
+
+    except Exception as e:
+        print(f"[ERROR] Unsubscribe failed: {e}")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": True, "message": f"Erreur serveur: {str(e)}"},
+        )

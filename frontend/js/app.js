@@ -17,6 +17,13 @@ const API_BASE = window.location.origin;
 // ── Global analysis data (used by action buttons) ─────────
 let _analysisData = null;
 let _currentFilter = null; // 'old', 'heavy', 'newsletter' or null
+let _allSenders = [];
+let _sortMode = 'count'; // 'count' or 'size'
+let _currentSender = null;
+let _currentSenderIndex = -1;
+let _currentPage = 1;
+let _itemsPerPage = 50;
+let _filteredSenders = [];
 
 
 // ═══════════════════════════════════════════════════════════
@@ -40,7 +47,15 @@ function resetToLanding() {
 /**
  * Redirect the user to the OAuth login page.
  */
+/**
+ * Redirect the user to the OAuth login page.
+ */
 function startLogin() {
+    // Save scan limit preference
+    const limitSelect = document.getElementById("scan-limit");
+    if (limitSelect) {
+        localStorage.setItem("mailscrub_scan_limit", limitSelect.value);
+    }
     window.location.href = `${API_BASE}/auth/login`;
 }
 
@@ -69,60 +84,121 @@ async function checkAuthOnLoad() {
 async function startAnalysis(isReal = false) {
     showSection($loading);
 
-    // Loading steps for UX
-    const steps = isReal
-        ? [
-            "Connexion à Gmail...",
-            "Récupération des messages...",
-            "Lecture des en-têtes...",
-            "Catégorisation des expéditeurs...",
-            "Calcul du score de santé...",
-        ]
-        : [
-            "Chargement des données de démo...",
-            "Analyse des expéditeurs...",
-            "Calcul du score de santé...",
-        ];
+    // Get saved limit or default (for both demo and real)
+    const limit = localStorage.getItem("mailscrub_scan_limit") || 1000;
 
-    // Show steps progressively
-    for (let i = 0; i < steps.length; i++) {
-        $loaderStatus.textContent = steps[i];
-        await sleep(400 + Math.random() * 300);
-    }
+    // Select elements FRESHLY to ensure we have them
+    const statusText = document.getElementById("loader-status");
+    const progressBar = document.getElementById("progress-bar");
+
+    // Debug
+    console.log("[App] Starting analysis...", { isReal, limit });
+    if (!progressBar) console.error("[App] FATAL: #progress-bar not found in DOM");
+    else console.log("[App] Progress bar found.");
+
+    if (statusText) statusText.textContent = `Initialisation (${limit} emails)...`;
+    if (progressBar) progressBar.style.width = "2%";
 
     try {
-        const response = await fetch(`${API_BASE}/api/analyze`);
-        const data = await response.json();
+        const response = await fetch(`${API_BASE}/api/analyze?limit=${limit}`);
 
-        // Handle server error with fallback
-        if (!response.ok || data.error) {
-            console.error("Server error:", data);
-            $loaderStatus.innerHTML = `
-                ❌ ${data.message || "Erreur serveur"}<br>
-                <a href="#" onclick="startAnalysis(false); return false;" 
-                   style="color: #6373ff; text-decoration: underline; margin-top: 8px; display: inline-block;">
-                   Essayer en mode démo
-                </a>
-                <br>
-                <a href="/" style="color: #8b8fa8; text-decoration: underline; margin-top: 4px; display: inline-block; font-size: 0.85rem;">
-                   Retour à l'accueil
-                </a>
-            `;
-            return;
+        if (!response.ok) {
+            // Try to parse error JSON
+            try {
+                const errData = await response.json();
+                throw new Error(errData.message || "Erreur serveur");
+            } catch (e) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
         }
 
-        await sleep(300);
-        showSection($dashboard);
-        _analysisData = data;
-        renderDashboard(data, data.mode === "gmail");
+        // Stream Reader
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+
+            // Keep the last partial line
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                try {
+                    const event = JSON.parse(line);
+                    // console.log("[Stream]", event.type, event.percent); 
+
+                    if (event.type === "progress") {
+                        if (progressBar) {
+                            progressBar.style.width = `${event.percent}%`;
+                            // Force redraw hack if needed, but usually not
+                        }
+                        if (statusText) statusText.textContent = event.message;
+                    }
+                    else if (event.type === "complete") {
+                        console.log("[App] Analysis complete, data received.", event.data);
+
+                        if (progressBar) progressBar.style.width = "100%";
+                        if (statusText) statusText.textContent = "Analyse terminée !";
+
+                        await sleep(500);
+
+                        _analysisData = event.data;
+
+                        // DEBUG: Trace section switching
+                        console.log("[App] Switching to dashboard. Elements:", {
+                            $loading,
+                            $dashboard,
+                            loadingClass: $loading.classList.toString(),
+                            dashboardClass: $dashboard.classList.toString()
+                        });
+
+                        // Force switch section BEFORE render to ensure elements are visible
+                        try {
+                            showSection($dashboard);
+                            console.log("[App] Section switched. Dashboard visible?", !$dashboard.classList.contains("hidden"));
+                        } catch (e) {
+                            console.error("[App] FATAL: showSection failed", e);
+                            alert("Erreur critique: Impossible d'afficher le dashboard.");
+                        }
+
+                        try {
+                            console.log("[App] Rendering dashboard...");
+                            renderDashboard(event.data, event.data.mode === "gmail");
+                            console.log("[App] Dashboard rendered successfully.");
+                        } catch (renderErr) {
+                            console.error("[App] Render Error:", renderErr);
+                            console.error(renderErr.stack);
+                            alert("Erreur d'affichage du dashboard: " + renderErr.message);
+                        }
+                        return; // Stop the loop!
+                    }
+                    else if (event.type === "error") {
+                        throw new Error(event.message);
+                    }
+                } catch (e) {
+                    console.warn("JSON parse error/Handler error:", e, line);
+                }
+            }
+        }
+
     } catch (err) {
         console.error("Erreur d'analyse:", err);
-        $loaderStatus.innerHTML = `
-            ❌ Erreur de connexion au serveur<br>
-            <a href="/" style="color: #8b8fa8; text-decoration: underline; margin-top: 8px; display: inline-block;">
-                Retour à l'accueil
-            </a>
-        `;
+        if (statusText) {
+            statusText.innerHTML = `
+                ❌ ${err.message}<br>
+                <a href="/" style="color: #8b8fa8; text-decoration: underline; margin-top: 8px; display: inline-block;">
+                    Retour à l'accueil
+                </a>
+            `;
+        }
+        if (progressBar) progressBar.style.backgroundColor = "#ff4d6a";
     }
 }
 
@@ -153,7 +229,12 @@ function renderDashboard(data, isReal = false) {
 
     // Reset filter
     _currentFilter = null;
-    renderSenders(data.top_senders);
+
+    // START: Search & Sort Logic
+    _allSenders = data.top_senders || [];
+    initSenderControls();
+    filterSenders();
+    // END: Search & Sort Logic
 
     // Recommendations
     renderRecommendations(data.recommendations);
@@ -313,7 +394,21 @@ function renderScore(score) {
 // ═══════════════════════════════════════════════════════════
 
 function renderCategoriesChart(categories) {
-    const ctx = document.getElementById("chart-categories").getContext("2d");
+    const ctx = document.getElementById("chart-categories");
+    if (!ctx) return;
+
+    if (typeof Chart === 'undefined') {
+        console.warn("[App] Chart.js is not loaded. Probably blocked by ad-blocker.");
+        ctx.parentElement.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #ff4d6a;">
+                <p>⚠️ Graphique non disponible</p>
+                <p style="font-size: 0.8em; opacity: 0.8;">(Chart.js bloqué par le navigateur ?)</p>
+            </div>
+        `;
+        return;
+    }
+
+    const chartCtx = ctx.getContext("2d");
 
     const labels = {
         newsletter: "📬 Newsletters",
@@ -388,18 +483,137 @@ function renderCategoriesChart(categories) {
 
 
 // ═══════════════════════════════════════════════════════════
-// TOP SENDERS LIST
+// TOP SENDERS LIST (SEARCH & SORT)
 // ═══════════════════════════════════════════════════════════
 
-function renderSenders(senders) {
+function initSenderControls() {
+    const $search = document.getElementById('sender-search');
+    const $btnCount = document.getElementById('sort-count');
+    const $btnSize = document.getElementById('sort-size');
+
+    if ($search) {
+        // Clone to remove old listeners if re-rendering
+        const $newSearch = $search.cloneNode(true);
+        $search.parentNode.replaceChild($newSearch, $search);
+
+        $newSearch.addEventListener('input', (e) => {
+            filterSenders();
+        });
+
+        // Restore focus if needed, but simple input usually keeps it unless replaced.
+        // Actually replacing node kills focus. Better to just separate init or use a flag.
+        // Simplified: just add listener, it's fine if multiple (renderDashboard call only happens once per analysis usually)
+        // But to be safe let's just use oninput
+        $newSearch.oninput = () => filterSenders();
+    }
+
+    if ($btnCount) {
+        $btnCount.onclick = () => {
+            _sortMode = 'count';
+            $btnCount.classList.add('active');
+            $btnSize.classList.remove('active');
+            filterSenders();
+        };
+    }
+
+    if ($btnSize) {
+        $btnSize.onclick = () => {
+            _sortMode = 'size';
+            $btnSize.classList.add('active');
+            $btnCount.classList.remove('active');
+            filterSenders();
+        };
+    }
+}
+
+function filterSenders() {
+    const $search = document.getElementById('sender-search');
+    const query = $search ? $search.value.toLowerCase() : "";
+
+    let filtered = _allSenders.filter(s => {
+        const matchName = (s.name || "").toLowerCase().includes(query);
+        const matchEmail = (s.email || "").toLowerCase().includes(query);
+        return matchName || matchEmail;
+    });
+
+    // Sort
+    if (_sortMode === 'count') {
+        filtered.sort((a, b) => b.count - a.count);
+    } else {
+        filtered.sort((a, b) => (b.size_bytes || 0) - (a.size_bytes || 0));
+    }
+
+    // Save filtered list and reset page
+    _filteredSenders = filtered;
+    _currentPage = 1;
+
+    renderPagination();
+    renderSendersPage();
+}
+
+function renderSendersPage() {
+    const start = (_currentPage - 1) * _itemsPerPage;
+    const end = start + _itemsPerPage;
+    const pageItems = _filteredSenders.slice(start, end);
+
+    renderSenders(pageItems, start); // Pass start index for correct ranking
+}
+
+function renderPagination() {
+    const $controls = document.getElementById('pagination-controls');
+    if (!_filteredSenders || _filteredSenders.length <= _itemsPerPage) {
+        $controls.innerHTML = '';
+        return;
+    }
+
+    const totalPages = Math.ceil(_filteredSenders.length / _itemsPerPage);
+
+    $controls.innerHTML = `
+        <button class="btn-page" id="btn-prev" ${_currentPage === 1 ? 'disabled' : ''}>
+            ◀ Précédent
+        </button>
+        <span class="page-info">
+            Page ${_currentPage} sur ${totalPages}
+        </span>
+        <button class="btn-page" id="btn-next" ${_currentPage === totalPages ? 'disabled' : ''}>
+            Suivant ▶
+        </button>
+    `;
+
+    document.getElementById('btn-prev').onclick = () => {
+        if (_currentPage > 1) {
+            _currentPage--;
+            renderPagination();
+            renderSendersPage();
+            document.getElementById('senders-list').scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
+    document.getElementById('btn-next').onclick = () => {
+        if (_currentPage < totalPages) {
+            _currentPage++;
+            renderPagination();
+            renderSendersPage();
+            document.getElementById('senders-list').scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+}
+
+function renderSenders(senders, startIndex = 0) {
     const $list = document.getElementById("senders-list");
     $list.innerHTML = "";
 
-    const maxCount = senders.length > 0 ? senders[0].count : 1;
+    if (senders.length === 0) {
+        $list.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted);">Aucun résultat trouvé</div>`;
+        return;
+    }
+
+    // Dynamic max for visual bars relative to current view
+    const maxCount = Math.max(...senders.map(s => s.count), 1);
     const isReal = _analysisData && _analysisData.mode === "gmail";
 
-    senders.slice(0, 10).forEach((sender, i) => {
-        const rank = i + 1;
+    senders.forEach((sender, i) => {
+        const rank = startIndex + i + 1;
         const barWidth = (sender.count / maxCount) * 100;
 
         const categoryLabels = {
@@ -442,6 +656,14 @@ function renderSenders(senders) {
             ` : ''}
         `;
 
+        // Click on row -> Open Details
+        row.style.cursor = 'pointer';
+        row.onclick = (e) => {
+            // Avoid triggering when clicking buttons
+            if (e.target.closest('.btn-action')) return;
+            openSenderDetails(sender, i);
+        };
+
         $list.appendChild(row);
 
         // Animate bar after append
@@ -465,7 +687,7 @@ function renderSenders(senders) {
             btn.addEventListener("click", () => {
                 const idx = parseInt(btn.dataset.senderIndex);
                 const sender = senders[idx];
-                unsubscribeSender(sender);
+                unsubscribeSender(sender, idx);
             });
         });
     }
@@ -603,21 +825,84 @@ async function deleteSenderEmails(sender, rowIndex) {
 /**
  * Open the unsubscribe link for a sender.
  */
-function unsubscribeSender(sender) {
+/**
+ * Attempt one-click unsubscribe via backend.
+ */
+async function unsubscribeSender(sender, rowIndex) {
     const link = sender.unsubscribe_link || "";
     if (!link) {
-        alert("Pas de lien de désabonnement trouvé pour cet expéditeur.");
+        alert("Pas de lien de désabonnement trouvé.");
         return;
     }
 
-    // Parse List-Unsubscribe header — format: <url>, <mailto:...>
-    const urlMatch = link.match(/<(https?:\/\/[^>]+)>/);
-    const url = urlMatch ? urlMatch[1] : link.replace(/[<>]/g, "");
+    // Get button for feedback
+    let $btn = null;
+    if (rowIndex !== undefined) {
+        const $row = document.getElementById(`sender-row-${rowIndex}`);
+        if ($row) $btn = $row.querySelector(".btn-unsub");
+    }
 
-    if (url.startsWith("http")) {
-        window.open(url, "_blank");
-    } else {
-        alert(`Désabonnement par email requis : ${url}\nCopiez cette adresse et envoyez un mail vide.`);
+    // Determine target URL/Mailto
+    let target = link;
+    // Extract url from <...>
+    const urlMatch = link.match(/<(https?:\/\/[^>]+)>/);
+    const mailtoMatch = link.match(/<(mailto:[^>]+)>/);
+
+    if (urlMatch) target = urlMatch[1];
+    else if (mailtoMatch) target = mailtoMatch[1];
+    else target = link.replace(/[<>]/g, "");
+
+    // UI Loading
+    if ($btn) {
+        $btn.textContent = "⏳";
+        $btn.disabled = true;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/unsubscribe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: sender.email,
+                link: target
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            // Success
+            if ($btn) {
+                $btn.textContent = "✅";
+                $btn.title = "Désabonné avec succès";
+                // Disable button permanently
+                $btn.style.cursor = "default";
+            }
+        } else {
+            // Fallback required
+            const isFallback = data.fallback && target.startsWith("http");
+
+            if ($btn) {
+                $btn.textContent = isFallback ? "↗️" : "⚠️";
+                $btn.title = isFallback ? "Lien ouvert dans un nouvel onglet" : "Action manuelle requise";
+                $btn.disabled = false;
+            }
+
+            // Should we open the link?
+            if (isFallback) {
+                window.open(target, "_blank");
+            } else {
+                alert(`Le désabonnement automatique a échoué.\nLien : ${target}`);
+            }
+        }
+
+    } catch (err) {
+        console.error("Unsubscribe error:", err);
+        if ($btn) {
+            $btn.textContent = "❌";
+            $btn.disabled = false;
+        }
+        alert("Erreur de connexion au serveur.");
     }
 }
 
@@ -669,3 +954,125 @@ function renderSpaceSummary(data) {
 // ═══════════════════════════════════════════════════════════
 
 document.addEventListener("DOMContentLoaded", checkAuthOnLoad);
+
+
+// ═══════════════════════════════════════════════════════════
+// MODAL LOGIC (Sender Details)
+// ═══════════════════════════════════════════════════════════
+
+function openSenderDetails(sender, index) {
+    _currentSender = sender;
+    _currentSenderIndex = index;
+
+    // Fill Info
+    document.getElementById('modal-sender-name').textContent = sender.name || sender.email;
+    document.getElementById('modal-sender-email').textContent = sender.email;
+    document.getElementById('modal-count').textContent = sender.count;
+    document.getElementById('modal-size').textContent = formatSize(sender.size_bytes);
+
+    // List Messages
+    const $list = document.getElementById('modal-email-list');
+    $list.innerHTML = '';
+
+    const messages = sender.messages || []; // New field from backend
+    if (messages.length === 0) {
+        $list.innerHTML = '<li class="email-item" style="justify-content:center; color:var(--text-muted)">Aucun détail disponible</li>';
+    } else {
+        // Limit to 50 to avoid lag if 1000 items
+        messages.slice(0, 50).forEach(msg => {
+            const dateStr = new Date(msg.date * 1000).toLocaleDateString();
+            const li = document.createElement('li');
+            li.className = 'email-item';
+            li.innerHTML = `
+                <span class="email-subject">${msg.subject}</span>
+                <div class="email-meta">
+                    <span>${dateStr}</span>
+                    <span>${formatSize(msg.size)}</span>
+                </div>
+            `;
+            $list.appendChild(li);
+        });
+    }
+
+    // Configure Delete Button
+    const $btnDelete = document.getElementById('modal-btn-delete');
+    $btnDelete.onclick = deleteFromModal;
+    $btnDelete.textContent = `🗑️ Tout supprimer (${sender.count})`;
+    $btnDelete.disabled = false;
+
+    // Show Modal
+    document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    _currentSender = null;
+    _currentSenderIndex = -1;
+}
+
+// Close on click outside
+document.getElementById('modal-overlay').onclick = (e) => {
+    if (e.target.id === 'modal-overlay') closeModal();
+};
+
+async function deleteFromModal() {
+    if (!_currentSender) return;
+
+    const sender = _currentSender;
+    const index = _currentSenderIndex;
+    const $btn = document.getElementById('modal-btn-delete');
+
+    if (!confirm(`Confirmer la suppression de ${sender.count} emails ?`)) return;
+
+    // Loading UI
+    $btn.textContent = "⏳ Suppression...";
+    $btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message_ids: sender.message_ids,
+                mode: "trash",
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && !data.error) {
+            // Success
+            closeModal();
+
+            // Update UI in the list
+            const $row = document.getElementById(`sender-row-${index}`);
+            if ($row) {
+                $row.style.opacity = "0.4";
+                $row.style.textDecoration = "line-through";
+                // Disable button in row too
+                const $rowBtn = $row.querySelector('.btn-trash');
+                if ($rowBtn) {
+                    $rowBtn.textContent = '✅';
+                    $rowBtn.disabled = true;
+                }
+            }
+
+            // Update Stats (Freed space)
+            const $space = document.getElementById("space-freed");
+            if ($space) {
+                const current = parseInt($space.dataset.bytes || "0");
+                const newTotal = current + (sender.size_bytes || 0);
+                $space.dataset.bytes = newTotal;
+                $space.textContent = formatSize(newTotal);
+            }
+
+        } else {
+            alert(`Erreur : ${data.message || "Échec"}`);
+            $btn.textContent = "❌ Erreur";
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erreur serveur");
+        $btn.textContent = "❌ Erreur";
+    }
+}
