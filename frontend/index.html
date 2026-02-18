@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MailScrub.app — Diagnostic de santé pour votre boîte mail</title>
-    <meta name="description" content="Analysez votre boîte mail en 30 secondes. Score de santé, top expéditeurs, recommandations personnalisées. Gratuit et respectueux de votre vie privée.">
+    <meta name="description"
+        content="Analysez votre boîte mail en 30 secondes. Score de santé, top expéditeurs, recommandations personnalisées. Gratuit et respectueux de votre vie privée.">
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -17,6 +20,7 @@
     <!-- Styles -->
     <link rel="stylesheet" href="/css/style.css">
 </head>
+
 <body>
 
     <!-- ════════════════════════════════════════════════════════ -->
@@ -50,14 +54,19 @@
                 Découvrez qui vous spamme, combien de newsletters vous ignorez,<br>
                 et reprenez le contrôle de votre inbox.
             </p>
-            <button id="btn-connect" class="btn-primary" onclick="startAnalysis()">
-                <svg class="btn-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                    <polyline points="22,6 12,13 2,6"/>
+            <button id="btn-connect" class="btn-primary" onclick="startLogin()">
+                <svg class="btn-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
                 </svg>
-                Analyser ma boîte mail
+                Connecter Gmail &amp; Analyser
             </button>
             <p class="hero-trust">🔒 Aucune donnée stockée — Analyse en mémoire uniquement</p>
+            <p class="hero-demo-link" style="margin-top: 8px; opacity: 0.5; font-size: 0.85rem;">
+                <a href="#" onclick="startAnalysis(false); return false;"
+                    style="color: #8b8fa8; text-decoration: underline;">Essayer en mode démo (sans connexion)</a>
+            </p>
 
             <!-- Feature cards -->
             <div class="features">
@@ -113,7 +122,8 @@
             <!-- Header du dashboard -->
             <div class="dash-header">
                 <h2>Votre Diagnostic</h2>
-                <p class="dash-subtitle">Analyse de <span id="total-emails">0</span> emails · <span id="unique-senders">0</span> expéditeurs uniques</p>
+                <p class="dash-subtitle">Analyse de <span id="total-emails">0</span> emails · <span
+                        id="unique-senders">0</span> expéditeurs uniques</p>
             </div>
 
             <!-- Row 1 : Score + Categories -->
@@ -124,9 +134,9 @@
                     <div class="score-container">
                         <div class="score-ring" id="score-ring">
                             <svg viewBox="0 0 200 200">
-                                <circle class="score-bg" cx="100" cy="100" r="85"/>
+                                <circle class="score-bg" cx="100" cy="100" r="85" />
                                 <circle class="score-progress" id="score-progress" cx="100" cy="100" r="85"
-                                    stroke-dasharray="534" stroke-dashoffset="534"/>
+                                    stroke-dasharray="534" stroke-dashoffset="534" />
                             </svg>
                             <div class="score-value">
                                 <span class="score-number" id="score-number">0</span>
@@ -188,4 +198,5 @@
     <!-- App JS -->
     <script src="/js/app.js"></script>
 </body>
+
 </html>

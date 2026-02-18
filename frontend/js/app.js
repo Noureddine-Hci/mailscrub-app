@@ -1,7 +1,7 @@
 /**
  * MailScrub.app — Frontend Application
  *
- * Gère le flux : Landing → Loading → Dashboard
+ * Gère le flux : Landing → OAuth Login → Loading → Dashboard
  * Appelle l'API backend et rend les charts avec Chart.js.
  */
 
@@ -30,36 +30,94 @@ function resetToLanding() {
 
 
 // ═══════════════════════════════════════════════════════════
+// AUTH FLOW
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Redirect the user to the OAuth login page.
+ */
+function startLogin() {
+    window.location.href = `${API_BASE}/auth/login`;
+}
+
+/**
+ * Check if we just came back from OAuth (URL has ?authenticated=true).
+ * If so, automatically start the analysis.
+ */
+async function checkAuthOnLoad() {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("authenticated") === "true") {
+        // Clean the URL (remove ?authenticated=true)
+        window.history.replaceState({}, document.title, "/");
+
+        // Start analysis with real data
+        await startAnalysis(true);
+        return;
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════
 // ANALYSIS FLOW
 // ═══════════════════════════════════════════════════════════
 
-async function startAnalysis() {
+async function startAnalysis(isReal = false) {
     showSection($loading);
 
-    // Simulate loading steps for UX
-    const steps = [
-        "Connexion à Gmail...",
-        "Récupération des en-têtes...",
-        "Analyse des expéditeurs...",
-        "Calcul du score de santé...",
-        "Génération des recommandations...",
-    ];
+    // Loading steps for UX
+    const steps = isReal
+        ? [
+            "Connexion à Gmail...",
+            "Récupération des messages...",
+            "Lecture des en-têtes...",
+            "Catégorisation des expéditeurs...",
+            "Calcul du score de santé...",
+        ]
+        : [
+            "Chargement des données de démo...",
+            "Analyse des expéditeurs...",
+            "Calcul du score de santé...",
+        ];
 
+    // Show steps progressively
     for (let i = 0; i < steps.length; i++) {
         $loaderStatus.textContent = steps[i];
-        await sleep(500 + Math.random() * 400);
+        await sleep(400 + Math.random() * 300);
     }
 
     try {
         const response = await fetch(`${API_BASE}/api/analyze`);
         const data = await response.json();
 
+        // Handle server error with fallback
+        if (!response.ok || data.error) {
+            console.error("Server error:", data);
+            $loaderStatus.innerHTML = `
+                ❌ ${data.message || "Erreur serveur"}<br>
+                <a href="#" onclick="startAnalysis(false); return false;" 
+                   style="color: #6373ff; text-decoration: underline; margin-top: 8px; display: inline-block;">
+                   Essayer en mode démo
+                </a>
+                <br>
+                <a href="/" style="color: #8b8fa8; text-decoration: underline; margin-top: 4px; display: inline-block; font-size: 0.85rem;">
+                   Retour à l'accueil
+                </a>
+            `;
+            return;
+        }
+
         await sleep(300);
         showSection($dashboard);
-        renderDashboard(data);
+        renderDashboard(data, data.mode === "gmail");
     } catch (err) {
         console.error("Erreur d'analyse:", err);
-        $loaderStatus.textContent = "Erreur — vérifiez que le serveur est lancé.";
+        $loaderStatus.innerHTML = `
+            ❌ Erreur de connexion au serveur<br>
+            <a href="/" style="color: #8b8fa8; text-decoration: underline; margin-top: 8px; display: inline-block;">
+                Retour à l'accueil
+            </a>
+        `;
     }
 }
 
@@ -68,10 +126,16 @@ async function startAnalysis() {
 // RENDER DASHBOARD
 // ═══════════════════════════════════════════════════════════
 
-function renderDashboard(data) {
+function renderDashboard(data, isReal = false) {
     // Header stats
     animateCounter("total-emails", data.total_emails, 1500);
     animateCounter("unique-senders", data.stats.unique_senders, 1200);
+
+    // Show mode badge
+    const $userEmail = document.getElementById("user-email");
+    if ($userEmail) {
+        $userEmail.textContent = isReal ? "📧 Données Gmail" : "🧪 Mode Démo";
+    }
 
     // Health Score
     renderScore(data.health_score);
@@ -352,3 +416,10 @@ function animateValue(element, start, end, duration) {
 function animateCounter(id, target, duration) {
     animateValue(id, 0, target, duration);
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// INIT — Check for auth on page load
+// ═══════════════════════════════════════════════════════════
+
+document.addEventListener("DOMContentLoaded", checkAuthOnLoad);

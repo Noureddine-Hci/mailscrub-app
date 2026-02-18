@@ -2,16 +2,86 @@
 MailScrub.app — Mail Analyzer Service
 
 Calcule le Mail Health Score et catégorise les expéditeurs.
-Mode démo : génère des données réalistes pour tester le dashboard.
+Supporte deux modes :
+    - analyze_demo() → données de démonstration
+    - analyze_real(service) → vraies données Gmail via API
 """
 
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass, field
+from collections import Counter
+from email.utils import parseaddr
 
 
-# ── Données de démonstration réalistes ────────────────────────
+# ── Result ────────────────────────────────────────────────────
+
+@dataclass
+class AnalysisResult:
+    """Résultat complet de l'analyse de la boîte mail."""
+
+    health_score: int
+    total_emails: int
+    categories: dict[str, int]
+    category_percentages: dict[str, float]
+    top_senders: list[dict]
+    recommendations: list[str]
+    stats: dict[str, int] = field(default_factory=dict)
+
+
+# ── Heuristiques de catégorisation ─────────────────────────────
+
+NEWSLETTER_PATTERNS = [
+    "newsletter", "digest", "weekly", "daily", "noreply", "no-reply",
+    "news@", "info@", "updates@", "promo@", "marketing@", "hello@",
+    "mailer@", "mail@", "bulletin", "announce", "campaign",
+    "noreply@", "no_reply@", "donotreply@", "notification@",
+]
+
+NOTIFICATION_PATTERNS = [
+    "notification", "alert", "confirm", "verify", "security",
+    "support@", "help@", "service@", "team@", "admin@",
+    "noreply@github", "noreply@linkedin", "noreply@discord",
+    "notify@", "alerts@",
+]
+
+SPAM_PATTERNS = [
+    "win", "prize", "lottery", "free", "offer", "deal", "discount",
+    "urgent", "act now", "limited time", "congratulations", "winner",
+    ".xyz", ".top", ".club", ".buzz",
+]
+
+
+def _categorize_sender(email_addr: str, name: str, subject: str = "") -> str:
+    """Catégorise un expéditeur par heuristique."""
+    combined = f"{email_addr} {name} {subject}".lower()
+
+    # Check spam first (strongest signals)
+    spam_score = sum(1 for p in SPAM_PATTERNS if p in combined)
+    if spam_score >= 2:
+        return "spam"
+
+    # Check newsletter patterns
+    newsletter_score = sum(1 for p in NEWSLETTER_PATTERNS if p in combined)
+    if newsletter_score >= 1:
+        # Distinguish newsletter from notification
+        notif_score = sum(1 for p in NOTIFICATION_PATTERNS if p in combined)
+        if notif_score > newsletter_score:
+            return "notification"
+        return "newsletter"
+
+    # Check notification patterns
+    notif_score = sum(1 for p in NOTIFICATION_PATTERNS if p in combined)
+    if notif_score >= 1:
+        return "notification"
+
+    # Default: human
+    return "human"
+
+
+# ── Données de démonstration ──────────────────────────────────
 
 DEMO_SENDERS = [
     {"email": "newsletter@medium.com", "name": "Medium Daily Digest", "category": "newsletter"},
@@ -44,19 +114,6 @@ DEMO_SENDERS = [
 ]
 
 
-@dataclass
-class AnalysisResult:
-    """Résultat complet de l'analyse de la boîte mail."""
-
-    health_score: int
-    total_emails: int
-    categories: dict[str, int]
-    category_percentages: dict[str, float]
-    top_senders: list[dict]
-    recommendations: list[str]
-    stats: dict[str, int] = field(default_factory=dict)
-
-
 class MailAnalyzer:
     """
     Service d'analyse de la boîte mail.
@@ -67,49 +124,179 @@ class MailAnalyzer:
     - Diversité des expéditeurs
     """
 
+    # ── REAL GMAIL ANALYSIS ───────────────────────────────────
+
+    def analyze_real(self, service) -> AnalysisResult:
+        """
+        Analyse la vraie boîte mail via l'API Gmail.
+
+        1. Liste les messages récents (max 500)
+        2. Récupère les headers (From, Subject)
+        3. Catégorise chaque expéditeur
+        4. Calcule le score et les recommandations
+        """
+        # Step 1: List messages (derniers 500 mails)
+        messages = []
+        next_page_token = None
+
+        while len(messages) < 500:
+            results = service.users().messages().list(
+                userId="me",
+                maxResults=100,
+                pageToken=next_page_token,
+            ).execute()
+
+            batch = results.get("messages", [])
+            if not batch:
+                break
+
+            messages.extend(batch)
+            next_page_token = results.get("nextPageToken")
+
+            if not next_page_token:
+                break
+
+        total_emails = len(messages)
+
+        if total_emails == 0:
+            return AnalysisResult(
+                health_score=100,
+                total_emails=0,
+                categories={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
+                category_percentages={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
+                top_senders=[],
+                recommendations=["📭 Votre boîte mail est vide ! Rien à analyser."],
+                stats={"newsletter_sources": 0, "estimated_unread": 0, "unique_senders": 0},
+            )
+
+        # Step 2: Get headers for each message (batch by 50 for speed)
+        sender_counter: Counter = Counter()
+        sender_names: dict[str, str] = {}
+        sender_categories: dict[str, str] = {}
+
+        # Process in chunks of 50
+        for i in range(0, min(total_emails, 200), 1):
+            msg_id = messages[i]["id"]
+            try:
+                msg = service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="metadata",
+                    metadataHeaders=["From", "Subject"],
+                ).execute()
+
+                headers = {
+                    h["name"]: h["value"]
+                    for h in msg.get("payload", {}).get("headers", [])
+                }
+
+                from_header = headers.get("From", "")
+                subject = headers.get("Subject", "")
+
+                # Parse email address
+                name, email_addr = parseaddr(from_header)
+                email_addr = email_addr.lower().strip()
+
+                if not email_addr:
+                    continue
+
+                sender_counter[email_addr] += 1
+
+                if email_addr not in sender_names:
+                    sender_names[email_addr] = name or email_addr.split("@")[0]
+
+                if email_addr not in sender_categories:
+                    sender_categories[email_addr] = _categorize_sender(
+                        email_addr, name, subject
+                    )
+
+            except Exception:
+                continue
+
+        # Step 3: Build results
+        category_counts = {"newsletter": 0, "notification": 0, "human": 0, "spam": 0}
+
+        senders_list = []
+        for email_addr, count in sender_counter.most_common():
+            cat = sender_categories.get(email_addr, "human")
+            category_counts[cat] = category_counts.get(cat, 0) + count
+
+            senders_list.append({
+                "email": email_addr,
+                "name": sender_names.get(email_addr, email_addr),
+                "category": cat,
+                "count": count,
+            })
+
+        # Percentages
+        total_categorized = sum(category_counts.values()) or 1
+        category_pct = {
+            cat: round((count / total_categorized) * 100, 1)
+            for cat, count in category_counts.items()
+        }
+
+        # Score
+        health_score = self._calculate_score(category_pct)
+
+        # Recommendations
+        recommendations = self._generate_recommendations(category_pct, senders_list)
+
+        # Stats
+        newsletter_sources = sum(
+            1 for s in senders_list if s["category"] == "newsletter"
+        )
+
+        return AnalysisResult(
+            health_score=health_score,
+            total_emails=total_emails,
+            categories=category_counts,
+            category_percentages=category_pct,
+            top_senders=senders_list[:15],
+            recommendations=recommendations,
+            stats={
+                "newsletter_sources": newsletter_sources,
+                "estimated_unread": 0,  # Can be fetched via labels if needed
+                "unique_senders": len(senders_list),
+            },
+        )
+
+    # ── DEMO ANALYSIS ─────────────────────────────────────────
+
     def analyze_demo(self) -> AnalysisResult:
         """
         Génère une analyse réaliste avec des données de démonstration.
         Utilisé pour tester le dashboard avant l'intégration OAuth.
         """
-        # Simuler des comptages réalistes
         senders_with_counts = []
         total = 0
         category_counts = {"newsletter": 0, "notification": 0, "human": 0, "spam": 0}
 
         for sender in DEMO_SENDERS:
-            # Les newsletters et notifs ont plus de mails
             if sender["category"] == "newsletter":
                 count = random.randint(25, 120)
             elif sender["category"] == "notification":
                 count = random.randint(15, 80)
             elif sender["category"] == "human":
                 count = random.randint(3, 30)
-            else:  # spam
+            else:
                 count = random.randint(5, 40)
 
             senders_with_counts.append({**sender, "count": count})
             total += count
             category_counts[sender["category"]] += count
 
-        # Trier par nombre de mails (décroissant)
         senders_with_counts.sort(key=lambda x: x["count"], reverse=True)
 
-        # Calculer les pourcentages par catégorie
         category_pct = {
             cat: round((count / total) * 100, 1)
             for cat, count in category_counts.items()
         }
 
-        # Calculer le Health Score
         health_score = self._calculate_score(category_pct)
-
-        # Générer les recommandations
         recommendations = self._generate_recommendations(
             category_pct, senders_with_counts
         )
 
-        # Stats supplémentaires
         newsletter_count = sum(
             1 for s in DEMO_SENDERS if s["category"] == "newsletter"
         )
@@ -128,6 +315,8 @@ class MailAnalyzer:
                 "unique_senders": len(DEMO_SENDERS),
             },
         )
+
+    # ── SCORE CALCULATION ─────────────────────────────────────
 
     def _calculate_score(self, category_pct: dict[str, float]) -> int:
         """
@@ -151,7 +340,6 @@ class MailAnalyzer:
         if human_pct > 40:
             score += 10
 
-        # Clamp entre 0 et 100
         return max(0, min(100, int(score)))
 
     def _generate_recommendations(

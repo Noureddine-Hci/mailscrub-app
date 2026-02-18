@@ -7,10 +7,17 @@ Sert aussi les fichiers statiques du frontend.
 
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
+
+import os
+
+# Load .env from the backend/ directory
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from backend.routers import auth, analysis
 
@@ -19,7 +26,14 @@ from backend.routers import auth, analysis
 app = FastAPI(
     title="MailScrub.app",
     description="Diagnostic de santé pour votre boîte mail",
-    version="0.1.0",
+    version="0.2.0",
+)
+
+# ── Session Middleware (needed for OAuth) ─────────────────────
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "dev-secret-key"),
 )
 
 # ── CORS ──────────────────────────────────────────────────────
