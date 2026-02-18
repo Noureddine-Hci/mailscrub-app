@@ -33,6 +33,21 @@ def _get_gmail_service(request: Request):
             content={"error": True, "message": "Non authentifié. Connectez-vous d'abord."},
         )
 
+    # Check for stale session with old OAuth scope
+    REQUIRED_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
+    session_scopes = creds_data.get("scopes", [])
+    if REQUIRED_SCOPE not in session_scopes:
+        # Clear stale session — user needs to re-login with new scope
+        request.session.pop("credentials", None)
+        return None, JSONResponse(
+            status_code=401,
+            content={
+                "error": True,
+                "message": "Session expirée. Reconnectez-vous pour activer les nouvelles fonctionnalités.",
+                "reauth": True,
+            },
+        )
+
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
