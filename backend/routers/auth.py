@@ -92,10 +92,21 @@ async def callback(request: Request, code: str = "", state: str = ""):
 
     flow = _get_flow(redirect_uri)
 
-    # Exchange the authorization code for credentials
-    flow.fetch_token(code=code)
+    # Relax scope enforcement: prevents crash if Google returns different scopes
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+
+    try:
+        # Exchange the authorization code for credentials
+        flow.fetch_token(code=code)
+    except Exception as e:
+        print(f"[ERROR] OAuth fetch_token failed: {e}")
+        return RedirectResponse("/?error=oauth_failed")
 
     credentials = flow.credentials
+
+    # Verify we got the required scope
+    if "https://www.googleapis.com/auth/gmail.modify" not in credentials.scopes:
+        return RedirectResponse("/?error=missing_scope")
 
     # Store credentials in session (serialized)
     request.session["credentials"] = {
