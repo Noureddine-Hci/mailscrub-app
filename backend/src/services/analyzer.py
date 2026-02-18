@@ -9,10 +9,13 @@ Supporte deux modes :
 
 from __future__ import annotations
 
+import os
 import random
 import re
-from dataclasses import dataclass, field
+import time
 from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from email.utils import parseaddr
 
 
@@ -28,7 +31,15 @@ class AnalysisResult:
     category_percentages: dict[str, float]
     top_senders: list[dict]
     recommendations: list[str]
-    stats: dict[str, int] = field(default_factory=dict)
+    stats: dict = field(
+        default_factory=lambda: {
+            "newsletter_sources": 0,
+            "estimated_unread": 0,
+            "unique_senders": 0,
+            "total_size_bytes": 0,
+        }
+    )
+    quick_actions: list[dict] = field(default_factory=list)
 
 
 # ── Heuristiques de catégorisation ─────────────────────────────
@@ -166,16 +177,28 @@ class MailAnalyzer:
                 category_percentages={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
                 top_senders=[],
                 recommendations=["📭 Votre boîte mail est vide ! Rien à analyser."],
-                stats={"newsletter_sources": 0, "estimated_unread": 0, "unique_senders": 0},
+                stats={
+                    "newsletter_sources": 0,
+                    "estimated_unread": 0,
+                    "unique_senders": 0,
+                    "total_size_bytes": 0,
+                },
+                quick_actions=[],
             )
 
         # Step 2: Get headers for each message
         sender_counter: Counter = Counter()
         sender_names: dict[str, str] = {}
         sender_categories: dict[str, str] = {}
-        sender_message_ids: dict[str, list[str]] = {}   # email → [msg_id, ...]
-        sender_sizes: dict[str, int] = {}                # email → total size in bytes
-        sender_unsubscribe: dict[str, str] = {}          # email → List-Unsubscribe header
+        sender_message_ids: dict[str, list[str]] = {}  # email → [msg_id, ...]
+        sender_sizes: dict[str, int] = {}  # email → total size in bytes
+        sender_unsubscribe: dict[str, str] = {}  # email → List-Unsubscribe header
+        sender_old_sizes: dict[str, int] = {}  # email → size of emails > 1 year
+        sender_heavy_sizes: dict[str, int] = {}  # email → size of emails > 5MB
+
+        current_time = time.time()
+        one_year_ago = current_time - (365 * 24 * 3600)
+        HEAVY_THRESHOLD = 5 * 1024 * 1024  # 5 MB
 
         # Process in chunks of 50
         for i in range(0, min(total_emails, 200), 1):
@@ -187,6 +210,8 @@ class MailAnalyzer:
                     format="metadata",
                     metadataHeaders=["From", "Subject", "List-Unsubscribe"],
                 ).execute()
+
+                internal_date = int(msg.get("internalDate", 0)) / 1000
 
                 headers = {
                     h["name"]: h["value"]
@@ -211,6 +236,18 @@ class MailAnalyzer:
                 # Track message size
                 msg_size = msg.get("sizeEstimate", 0)
                 sender_sizes[email_addr] = sender_sizes.get(email_addr, 0) + msg_size
+
+                # Track old emails
+                if internal_date < one_year_ago:
+                    sender_old_sizes[email_addr] = (
+                        sender_old_sizes.get(email_addr, 0) + msg_size
+                    )
+
+                # Track heavy emails
+                if msg_size > HEAVY_THRESHOLD:
+                    sender_heavy_sizes[email_addr] = (
+                        sender_heavy_sizes.get(email_addr, 0) + msg_size
+                    )
 
                 if email_addr not in sender_names:
                     sender_names[email_addr] = name or email_addr.split("@")[0]
@@ -243,6 +280,8 @@ class MailAnalyzer:
                 "count": count,
                 "message_ids": sender_message_ids.get(email_addr, []),
                 "size_bytes": sender_sizes.get(email_addr, 0),
+                "old_bytes": sender_old_sizes.get(email_addr, 0),
+                "heavy_bytes": sender_heavy_sizes.get(email_addr, 0),
                 "unsubscribe_link": sender_unsubscribe.get(email_addr, ""),
             })
 
@@ -256,13 +295,23 @@ class MailAnalyzer:
         # Score
         health_score = self._calculate_score(category_pct)
 
-        # Recommendations
-        recommendations = self._generate_recommendations(category_pct, senders_list)
-
         # Stats
         newsletter_sources = sum(
             1 for s in senders_list if s["category"] == "newsletter"
         )
+        total_size_bytes = sum(s.get("size_bytes", 0) for s in senders_list)
+        unique_senders = len(sender_counter)
+
+        stats = {
+            "newsletter_sources": newsletter_sources,
+            "estimated_unread": int(total_emails * 0.4),  # Placeholder
+            "unique_senders": unique_senders,
+            "total_size_bytes": total_size_bytes,
+        }
+
+        # Recommendations
+        recommendations = self._generate_recommendations(category_pct, senders_list)
+        quick_actions = self._generate_smart_suggestions(senders_list, stats)
 
         return AnalysisResult(
             health_score=health_score,
@@ -271,12 +320,8 @@ class MailAnalyzer:
             category_percentages=category_pct,
             top_senders=senders_list[:15],
             recommendations=recommendations,
-            stats={
-                "newsletter_sources": newsletter_sources,
-                "estimated_unread": 0,
-                "unique_senders": len(senders_list),
-                "total_size_bytes": sum(sender_sizes.values()),
-            },
+            stats=stats,
+            quick_actions=quick_actions,
         )
 
     # ── DEMO ANALYSIS ─────────────────────────────────────────
@@ -332,6 +377,22 @@ class MailAnalyzer:
         )
         unread_estimate = int(total * random.uniform(0.3, 0.6))
 
+        stats = {
+            "newsletter_sources": newsletter_count,
+            "estimated_unread": unread_estimate,
+            "unique_senders": len(DEMO_SENDERS),
+            "total_size_bytes": sum(s.get("size_bytes", 0) for s in senders_with_counts),
+        }
+
+        # Fake some heavy/old stats for demo
+        for s in senders_with_counts:
+            s["old_bytes"] = int(s["size_bytes"] * random.uniform(0.1, 0.5))
+            s["heavy_bytes"] = (
+                int(s["size_bytes"] * 0.8) if random.random() > 0.8 else 0
+            )
+
+        quick_actions = self._generate_smart_suggestions(senders_with_counts, stats)
+
         return AnalysisResult(
             health_score=health_score,
             total_emails=total,
@@ -339,12 +400,8 @@ class MailAnalyzer:
             category_percentages=category_pct,
             top_senders=senders_with_counts[:15],
             recommendations=recommendations,
-            stats={
-                "newsletter_sources": newsletter_count,
-                "estimated_unread": unread_estimate,
-                "unique_senders": len(DEMO_SENDERS),
-                "total_size_bytes": sum(s.get("size_bytes", 0) for s in senders_with_counts),
-            },
+            stats=stats,
+            quick_actions=quick_actions,
         )
 
     # ── SCORE CALCULATION ─────────────────────────────────────
@@ -405,7 +462,7 @@ class MailAnalyzer:
         if category_pct.get("human", 0) < 20:
             recs.append(
                 "👥 Les mails de vraies personnes représentent moins de 20% "
-                "de votre boîte. Votre signal est noyé dans le bruit !"
+                "de votre boîte. Le reste est automatisé."
             )
 
         recs.append(
@@ -414,3 +471,50 @@ class MailAnalyzer:
         )
 
         return recs
+
+    def _generate_smart_suggestions(self, senders: list, stats: dict) -> list[dict]:
+        """Génère des actions de nettoyage 'Quick Wins'."""
+        actions = []
+
+        # 1. Vieux mails (> 1 an)
+        total_old_bytes = sum(s.get("old_bytes", 0) for s in senders)
+        if total_old_bytes > 5 * 1024 * 1024:  # > 5 MB
+            actions.append(
+                {
+                    "type": "old",
+                    "title": "Nettoyer les archives",
+                    "description": "Vieux mails (> 1 an)",
+                    "impact_bytes": total_old_bytes,
+                    "icon": "🕰️",
+                }
+            )
+
+        # 2. Gros fichiers (> 5 MB)
+        total_heavy_bytes = sum(s.get("heavy_bytes", 0) for s in senders)
+        if total_heavy_bytes > 10 * 1024 * 1024:  # > 10 MB
+            actions.append(
+                {
+                    "type": "heavy",
+                    "title": "Supprimer les gros fichiers",
+                    "description": "Mails lourds (> 5 Mo)",
+                    "impact_bytes": total_heavy_bytes,
+                    "icon": "🐘",
+                }
+            )
+
+        # 3. Newsletters massives
+        newsletter_bytes = sum(
+            s.get("size_bytes", 0) for s in senders if s["category"] == "newsletter"
+        )
+        if newsletter_bytes > 20 * 1024 * 1024:
+            actions.append(
+                {
+                    "type": "newsletter",
+                    "title": "Cibler les newsletters",
+                    "description": "Espace pris par les pubs",
+                    "impact_bytes": newsletter_bytes,
+                    "icon": "📰",
+                }
+            )
+
+        return actions

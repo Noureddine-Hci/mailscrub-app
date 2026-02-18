@@ -16,6 +16,7 @@ const API_BASE = window.location.origin;
 
 // ── Global analysis data (used by action buttons) ─────────
 let _analysisData = null;
+let _currentFilter = null; // 'old', 'heavy', 'newsletter' or null
 
 
 // ═══════════════════════════════════════════════════════════
@@ -146,8 +147,12 @@ function renderDashboard(data, isReal = false) {
 
     // Categories chart
     renderCategoriesChart(data.categories);
+    renderStats(data.stats);
+    renderSuggestions(data.quick_actions);
+    renderSpaceSummary(data);
 
-    // Top senders
+    // Reset filter
+    _currentFilter = null;
     renderSenders(data.top_senders);
 
     // Recommendations
