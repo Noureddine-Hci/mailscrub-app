@@ -18,8 +18,29 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
-# Allow HTTP for local dev (OAuth lib requires HTTPS by default)
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+# Allow HTTP only for local development
+if os.getenv("K_SERVICE"):
+    # Running on Cloud Run → force HTTPS
+    os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
+else:
+    # Local dev → allow HTTP
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
+
+def _get_redirect_uri(request: Request) -> str:
+    """
+    Build the OAuth callback URI, forcing HTTPS on Cloud Run.
+    Cloud Run sits behind a reverse proxy that terminates TLS,
+    so request.url_for() may return http:// even though the
+    actual public URL is https://.
+    """
+    url = str(request.url_for("callback"))
+
+    # On Cloud Run, force https
+    if os.getenv("K_SERVICE"):
+        url = url.replace("http://", "https://")
+
+    return url
 
 
 def _get_flow(redirect_uri: str) -> Flow:
@@ -46,8 +67,7 @@ async def login(request: Request):
     """
     Redirige l'utilisateur vers l'écran de consentement Google.
     """
-    # Build the callback URL dynamically based on the current request
-    redirect_uri = str(request.url_for("callback"))
+    redirect_uri = _get_redirect_uri(request)
 
     flow = _get_flow(redirect_uri)
     authorization_url, state = flow.authorization_url(
@@ -68,7 +88,7 @@ async def callback(request: Request, code: str = "", state: str = ""):
     Callback OAuth — reçoit le code de Google, échange contre un token,
     et stocke les credentials dans la session.
     """
-    redirect_uri = str(request.url_for("callback"))
+    redirect_uri = _get_redirect_uri(request)
 
     flow = _get_flow(redirect_uri)
 
