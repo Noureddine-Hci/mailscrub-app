@@ -16,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── OAuth Config ──────────────────────────────────────────────
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
 # Allow HTTP only for local development
 if os.getenv("K_SERVICE"):

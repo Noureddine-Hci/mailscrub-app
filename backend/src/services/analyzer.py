@@ -169,10 +169,13 @@ class MailAnalyzer:
                 stats={"newsletter_sources": 0, "estimated_unread": 0, "unique_senders": 0},
             )
 
-        # Step 2: Get headers for each message (batch by 50 for speed)
+        # Step 2: Get headers for each message
         sender_counter: Counter = Counter()
         sender_names: dict[str, str] = {}
         sender_categories: dict[str, str] = {}
+        sender_message_ids: dict[str, list[str]] = {}   # email → [msg_id, ...]
+        sender_sizes: dict[str, int] = {}                # email → total size in bytes
+        sender_unsubscribe: dict[str, str] = {}          # email → List-Unsubscribe header
 
         # Process in chunks of 50
         for i in range(0, min(total_emails, 200), 1):
@@ -182,7 +185,7 @@ class MailAnalyzer:
                     userId="me",
                     id=msg_id,
                     format="metadata",
-                    metadataHeaders=["From", "Subject"],
+                    metadataHeaders=["From", "Subject", "List-Unsubscribe"],
                 ).execute()
 
                 headers = {
@@ -202,6 +205,13 @@ class MailAnalyzer:
 
                 sender_counter[email_addr] += 1
 
+                # Track message IDs for bulk actions
+                sender_message_ids.setdefault(email_addr, []).append(msg_id)
+
+                # Track message size
+                msg_size = msg.get("sizeEstimate", 0)
+                sender_sizes[email_addr] = sender_sizes.get(email_addr, 0) + msg_size
+
                 if email_addr not in sender_names:
                     sender_names[email_addr] = name or email_addr.split("@")[0]
 
@@ -209,6 +219,11 @@ class MailAnalyzer:
                     sender_categories[email_addr] = _categorize_sender(
                         email_addr, name, subject
                     )
+
+                # Track List-Unsubscribe header
+                unsub = headers.get("List-Unsubscribe", "")
+                if unsub and email_addr not in sender_unsubscribe:
+                    sender_unsubscribe[email_addr] = unsub
 
             except Exception:
                 continue
@@ -226,6 +241,9 @@ class MailAnalyzer:
                 "name": sender_names.get(email_addr, email_addr),
                 "category": cat,
                 "count": count,
+                "message_ids": sender_message_ids.get(email_addr, []),
+                "size_bytes": sender_sizes.get(email_addr, 0),
+                "unsubscribe_link": sender_unsubscribe.get(email_addr, ""),
             })
 
         # Percentages
@@ -255,8 +273,9 @@ class MailAnalyzer:
             recommendations=recommendations,
             stats={
                 "newsletter_sources": newsletter_sources,
-                "estimated_unread": 0,  # Can be fetched via labels if needed
+                "estimated_unread": 0,
                 "unique_senders": len(senders_list),
+                "total_size_bytes": sum(sender_sizes.values()),
             },
         )
 
@@ -281,7 +300,18 @@ class MailAnalyzer:
             else:
                 count = random.randint(5, 40)
 
-            senders_with_counts.append({**sender, "count": count})
+            size = random.randint(50000, 500000) * count
+            unsub = ""
+            if sender["category"] in ("newsletter", "spam"):
+                unsub = f"<https://unsubscribe.example.com/{sender['email'].split('@')[0]}>"
+
+            senders_with_counts.append({
+                **sender,
+                "count": count,
+                "message_ids": [],
+                "size_bytes": size,
+                "unsubscribe_link": unsub,
+            })
             total += count
             category_counts[sender["category"]] += count
 
@@ -313,6 +343,7 @@ class MailAnalyzer:
                 "newsletter_sources": newsletter_count,
                 "estimated_unread": unread_estimate,
                 "unique_senders": len(DEMO_SENDERS),
+                "total_size_bytes": sum(s.get("size_bytes", 0) for s in senders_with_counts),
             },
         )
 

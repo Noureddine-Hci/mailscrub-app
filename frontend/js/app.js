@@ -14,6 +14,9 @@ const $loaderStatus = document.getElementById("loader-status");
 // ── API Base URL ──────────────────────────────────────────
 const API_BASE = window.location.origin;
 
+// ── Global analysis data (used by action buttons) ─────────
+let _analysisData = null;
+
 
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
@@ -109,6 +112,7 @@ async function startAnalysis(isReal = false) {
 
         await sleep(300);
         showSection($dashboard);
+        _analysisData = data;
         renderDashboard(data, data.mode === "gmail");
     } catch (err) {
         console.error("Erreur d'analyse:", err);
@@ -153,6 +157,9 @@ function renderDashboard(data, isReal = false) {
     animateCounter("stat-newsletters", data.stats.newsletter_sources, 1000);
     animateCounter("stat-unread", data.stats.estimated_unread, 1400);
     animateCounter("stat-senders", data.stats.unique_senders, 1200);
+
+    // Space summary (only for real data)
+    renderSpaceSummary(data);
 }
 
 
@@ -316,6 +323,7 @@ function renderSenders(senders) {
     $list.innerHTML = "";
 
     const maxCount = senders.length > 0 ? senders[0].count : 1;
+    const isReal = _analysisData && _analysisData.mode === "gmail";
 
     senders.slice(0, 10).forEach((sender, i) => {
         const rank = i + 1;
@@ -330,7 +338,11 @@ function renderSenders(senders) {
 
         const row = document.createElement("div");
         row.className = "sender-row";
+        row.id = `sender-row-${i}`;
         row.style.animationDelay = `${0.3 + i * 0.05}s`;
+
+        const sizeText = sender.size_bytes ? formatSize(sender.size_bytes) : "";
+        const hasUnsub = sender.unsubscribe_link && sender.unsubscribe_link.length > 0;
 
         row.innerHTML = `
             <span class="sender-rank ${rank <= 3 ? 'top-3' : ''}">#${rank}</span>
@@ -342,6 +354,19 @@ function renderSenders(senders) {
                 <div class="sender-bar ${sender.category}" style="width: 0%"></div>
             </div>
             <span class="sender-count">${sender.count}</span>
+            ${sizeText ? `<span class="sender-size">${sizeText}</span>` : ''}
+            ${isReal ? `
+                <div class="sender-actions">
+                    <button class="btn-action btn-trash" data-sender-index="${i}" title="Mettre à la corbeille">
+                        🗑️
+                    </button>
+                    ${hasUnsub ? `
+                        <button class="btn-action btn-unsub" data-sender-index="${i}" title="Se désabonner">
+                            🚫
+                        </button>
+                    ` : ''}
+                </div>
+            ` : ''}
         `;
 
         $list.appendChild(row);
@@ -353,6 +378,24 @@ function renderSenders(senders) {
             }, 100 + i * 80);
         });
     });
+
+    // Attach event listeners (safer than inline onclick with JSON)
+    if (isReal) {
+        document.querySelectorAll(".btn-trash").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const idx = parseInt(btn.dataset.senderIndex);
+                const sender = senders[idx];
+                deleteSenderEmails(sender, idx);
+            });
+        });
+        document.querySelectorAll(".btn-unsub").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const idx = parseInt(btn.dataset.senderIndex);
+                const sender = senders[idx];
+                unsubscribeSender(sender);
+            });
+        });
+    }
 }
 
 
@@ -415,6 +458,136 @@ function animateValue(element, start, end, duration) {
  */
 function animateCounter(id, target, duration) {
     animateValue(id, 0, target, duration);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ACTION FUNCTIONS (Phase 1 — Cleanup)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Delete all emails from a specific sender (trash mode by default).
+ */
+async function deleteSenderEmails(sender, rowIndex) {
+    const count = sender.message_ids ? sender.message_ids.length : 0;
+    if (count === 0) {
+        alert("Aucun message à supprimer pour cet expéditeur.");
+        return;
+    }
+
+    const confirmed = confirm(
+        `🗑️ Mettre à la corbeille ${count} mail(s) de ${sender.name || sender.email} ?\n\n` +
+        `Espace récupéré : ~${formatSize(sender.size_bytes || 0)}\n` +
+        `Les mails seront dans la corbeille pendant 30 jours.`
+    );
+    if (!confirmed) return;
+
+    const $row = document.getElementById(`sender-row-${rowIndex}`);
+    const $btn = $row.querySelector(".btn-trash");
+
+    // Show loading state
+    $btn.textContent = "⏳";
+    $btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message_ids: sender.message_ids,
+                mode: "trash",
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && !data.error) {
+            // Success — animate row
+            $btn.textContent = "✅";
+            $row.style.opacity = "0.4";
+            $row.style.textDecoration = "line-through";
+            $row.style.transition = "opacity 0.5s ease";
+
+            // Update space counter if exists
+            const $space = document.getElementById("space-freed");
+            if ($space) {
+                const current = parseInt($space.dataset.bytes || "0");
+                const newTotal = current + (sender.size_bytes || 0);
+                $space.dataset.bytes = newTotal;
+                $space.textContent = formatSize(newTotal);
+            }
+        } else {
+            $btn.textContent = "❌";
+            alert(`Erreur : ${data.message || "Échec de la suppression"}`);
+        }
+    } catch (err) {
+        console.error("Delete error:", err);
+        $btn.textContent = "❌";
+        alert("Erreur de connexion au serveur.");
+    }
+}
+
+/**
+ * Open the unsubscribe link for a sender.
+ */
+function unsubscribeSender(sender) {
+    const link = sender.unsubscribe_link || "";
+    if (!link) {
+        alert("Pas de lien de désabonnement trouvé pour cet expéditeur.");
+        return;
+    }
+
+    // Parse List-Unsubscribe header — format: <url>, <mailto:...>
+    const urlMatch = link.match(/<(https?:\/\/[^>]+)>/);
+    const url = urlMatch ? urlMatch[1] : link.replace(/[<>]/g, "");
+
+    if (url.startsWith("http")) {
+        window.open(url, "_blank");
+    } else {
+        alert(`Désabonnement par email requis : ${url}\nCopiez cette adresse et envoyez un mail vide.`);
+    }
+}
+
+/**
+ * Format bytes into human-readable size.
+ */
+function formatSize(bytes) {
+    if (!bytes || bytes === 0) return "0 o";
+    if (bytes < 1024) return bytes + " o";
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " Ko";
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " Mo";
+    return (bytes / 1073741824).toFixed(1) + " Go";
+}
+
+/**
+ * Render the space summary section.
+ */
+function renderSpaceSummary(data) {
+    const $container = document.getElementById("space-summary");
+    if (!$container) return;
+
+    if (data.mode !== "gmail") {
+        $container.style.display = "none";
+        return;
+    }
+
+    $container.style.display = "block";
+
+    const totalSize = data.stats?.total_size_bytes || 0;
+    const nonHumanSize = data.top_senders
+        .filter(s => s.category !== "human")
+        .reduce((sum, s) => sum + (s.size_bytes || 0), 0);
+
+    const $total = document.getElementById("space-total");
+    const $recoverable = document.getElementById("space-recoverable");
+    const $freed = document.getElementById("space-freed");
+
+    if ($total) $total.textContent = formatSize(totalSize);
+    if ($recoverable) $recoverable.textContent = formatSize(nonHumanSize);
+    if ($freed) {
+        $freed.textContent = formatSize(0);
+        $freed.dataset.bytes = "0";
+    }
 }
 
 
