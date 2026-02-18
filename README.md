@@ -26,6 +26,8 @@ MailScrub analyse votre boîte Gmail en quelques secondes et vous donne :
 
 ## 🏗️ Architecture
 
+> 📘 **Voir le guide technique détaillé : [ARCHITECTURE.md](./ARCHITECTURE.md)**
+
 ```
 MailScrub/
 ├── backend/                    # FastAPI (Python 3.12)

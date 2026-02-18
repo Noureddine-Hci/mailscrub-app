@@ -23,35 +23,33 @@
 
 ---
 
-## 🎯 Phase 1 — Actions de nettoyage
+## 🎯 Phase 1 — Actions de nettoyage (Terminé ✅)
 
 **Objectif** : Transformer MailScrub d'un outil d'analyse en outil d'action.
 
-- [ ] **Suppression en lot par expéditeur**
-  - Bouton "Supprimer tout" à côté de chaque expéditeur
-  - Mode corbeille (défaut) ou suppression définitive
-  - Barre de progression + espace libéré en temps réel
-  - Scope OAuth : `gmail.readonly` → `gmail.modify`
+- [x] **Suppression en lot par expéditeur**
+  - [x] Bouton "Supprimer tout" (Corbeille)
+  - [x] Feedback visuel immédiat (Row disparaît)
+  - [x] Scope OAuth : `gmail.modify` (activé)
 
-- [ ] **Désabonnement intelligent**
-  - Détection header `List-Unsubscribe`
-  - Bouton "Se désabonner" automatique
-  - Badge "Désabonnement possible" vs "Manuel requis"
+- [x] **Désabonnement intelligent**
+  - [x] Détection header `List-Unsubscribe` (mailto/http)
+  - [x] Bouton "Se désabonner" automatique
+  - [x] Gestion des erreurs (fallback)
 
-- [ ] **Rapport d'espace**
-  - Taille par expéditeur (Gmail API `sizeEstimate`)
-  - Graphique "Qui prend le plus de place ?"
-  - Estimation avant/après nettoyage
+- [x] **Rapport d'espace**
+  - [x] Taille par expéditeur (Gmail API `sizeEstimate`)
+  - [x] Tri par taille (Gros fichiers d'abord)
+  - [x] Estimation de l'espace récupérable
 
 ---
 
-## 🧠 Phase 2 — Intelligence & valeur ajoutée
+## 🧠 Phase 2 — Intelligence & valeur ajoutée (En cours 🚧)
 
-- [ ] **Recommandations automatiques**
-  - "Ces expéditeurs t'envoient 40% de tes mails mais tu les lis jamais"
-  - Score de pertinence (fréquence × engagement)
-  - Détection de doublons
-
+- [x] **Recommandations automatiques**
+  - [x] "Quick Wins" (Vieux mails, Gros fichiers, Newsletters)
+  - [x] Filtres intelligents en un clic
+  
 - [ ] **Rapports périodiques**
   - Email mensuel résumé
   - Suivi évolution du score
