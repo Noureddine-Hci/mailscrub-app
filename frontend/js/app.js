@@ -168,6 +168,74 @@ function renderDashboard(data, isReal = false) {
 }
 
 
+
+// ═══════════════════════════════════════════════════════════
+// QUICK ACTIONS (SUGGESTIONS)
+// ═══════════════════════════════════════════════════════════
+
+function renderSuggestions(actions) {
+    const $container = document.getElementById("quick-actions-card");
+    const $list = document.getElementById("suggestions-list");
+
+    if (!actions || actions.length === 0) {
+        if ($container) $container.style.display = "none";
+        return;
+    }
+
+    if ($container) $container.style.display = "block";
+    if ($list) {
+        $list.innerHTML = actions.map(action => `
+            <div class="suggestion-card" onclick="ApplyFilter('${action.type}')">
+                <div class="suggestion-icon">${action.icon || '⚡'}</div>
+                <div class="suggestion-content">
+                    <div class="suggestion-title">${action.title}</div>
+                    <div class="suggestion-desc">${action.description}</div>
+                    <div class="suggestion-impact">+ ${formatSize(action.impact_bytes)} récupérables</div>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+window.ApplyFilter = function (startFilter) {
+    if (!_analysisData) return;
+
+    // Toggle filter
+    if (_currentFilter === startFilter) {
+        _currentFilter = null; // Remove filter
+    } else {
+        _currentFilter = startFilter;
+    }
+
+    // Scroll to list
+    const $list = document.getElementById("senders-list");
+    if ($list) $list.scrollIntoView({ behavior: 'smooth' });
+
+    // Filter logic
+    let filteredSenders = _analysisData.top_senders;
+
+    if (_currentFilter === 'old') {
+        filteredSenders = filteredSenders.filter(s => (s.old_bytes || 0) > 0);
+    } else if (_currentFilter === 'heavy') {
+        filteredSenders = filteredSenders.filter(s => (s.heavy_bytes || 0) > 0);
+    } else if (_currentFilter === 'newsletter') {
+        filteredSenders = filteredSenders.filter(s => s.category === 'newsletter');
+    }
+
+    renderSenders(filteredSenders);
+
+    // Update visual state of cards
+    document.querySelectorAll('.suggestion-card').forEach(card => {
+        if (card.getAttribute('onclick').includes(_currentFilter) && _currentFilter) {
+            card.style.borderColor = 'var(--primary)';
+            card.style.background = 'rgba(99, 115, 255, 0.1)';
+        } else {
+            card.style.borderColor = '';
+            card.style.background = '';
+        }
+    });
+};
+
 // ═══════════════════════════════════════════════════════════
 // SCORE RING
 // ═══════════════════════════════════════════════════════════
