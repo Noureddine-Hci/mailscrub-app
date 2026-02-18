@@ -146,11 +146,11 @@ class MailAnalyzer:
         3. Catégorise chaque expéditeur
         4. Calcule le score et les recommandations
         """
-        # Step 1: List messages (derniers 500 mails)
+        # Step 1: List messages (derniers 1000 mails)
         messages = []
         next_page_token = None
 
-        while len(messages) < 500:
+        while len(messages) < 1000:
             results = service.users().messages().list(
                 userId="me",
                 maxResults=100,

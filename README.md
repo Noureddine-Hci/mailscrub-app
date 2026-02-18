@@ -233,7 +233,7 @@ Utilisateur                   MailScrub                    Google
 
 ### Processus
 
-1. **List messages** : Récupère les derniers ~200 mails via `messages.list()`
+1. **List messages** : Récupère les derniers ~1000 mails via `messages.list()`
 2. **Get headers** : Pour chaque mail, récupère `From` et `Subject` via `messages.get(format="metadata")`
 3. **Parse sender** : Extrait email + nom depuis le header `From` via `parseaddr()`
 4. **Categorize** : Classifie chaque expéditeur par heuristique :
