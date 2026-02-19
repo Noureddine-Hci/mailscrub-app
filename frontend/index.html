@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=radio_buttons_ui">
 </head>
 
 <body>
@@ -32,80 +32,123 @@
         <div class="bg-orb bg-orb-2"></div>
         <div class="bg-orb bg-orb-3"></div>
 
-        <nav class="navbar">
+        <nav class="navbar landing-nav">
             <div class="logo">
                 <span class="logo-icon">📧</span>
                 <span class="logo-text">MailScrub</span>
                 <span class="logo-badge">.app</span>
             </div>
             <div class="nav-links">
-                <span class="nav-tag">MVP — Beta</span>
+                <a href="#features" class="nav-link">Fonctionnalités</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+                <button class="btn-ghost" onclick="startLogin()">Se connecter</button>
             </div>
         </nav>
 
         <div class="hero">
-            <div class="hero-badge">✨ 100% gratuit · Stateless · Privacy-first</div>
-            <h1 class="hero-title">
-                Votre boîte mail est-elle
-                <span class="gradient-text">en bonne santé</span> ?
-            </h1>
-            <p class="hero-subtitle">
-                Obtenez votre <strong>Mail Health Score</strong> en 30 secondes.<br>
-                Découvrez qui vous spamme, combien de newsletters vous ignorez,<br>
-                et reprenez le contrôle de votre inbox.
-            </p>
-            <!-- Scan Options -->
-            <div class="scan-options"
-                style="margin-bottom: 20px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; display: inline-block; text-align: left;">
-                <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: #a0a0b0;">
-                    <span style="margin-right: 6px;">🔍</span>Profondeur d'analyse :
-                </label>
-                <select id="scan-limit" style="
-                    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); 
-                    color: white; padding: 8px 12px; border-radius: 6px; width: 100%; 
-                    font-family: inherit; font-size: 0.95rem; cursor: pointer;">
-                    <option value="500">⚡ Rapide (500 mails) — ~30s</option>
-                    <option value="1000" selected>👌 Standard (1000 mails) — ~1 min</option>
-                    <option value="2500">🕵️ Profond (2500 mails) — ~3 min</option>
-                    <option value="5000">🐘 Max (5000 mails) — ~6 min</option>
-                </select>
-                <div style="margin-top: 8px; font-size: 0.8rem; color: #6b7280;">Le temps dépend de la vitesse de l'API
-                    Google.</div>
-            </div>
-            <br>
-            <button id="btn-connect" class="btn-primary" onclick="startLogin()">
-                <svg class="btn-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
-                    stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                </svg>
-                Connecter Gmail &amp; Analyser
-            </button>
-            <p class="hero-trust">🔒 Aucune donnée stockée — Analyse en mémoire uniquement</p>
-            <p class="hero-demo-link" style="margin-top: 8px; opacity: 0.5; font-size: 0.85rem;">
-                <a href="#" onclick="startAnalysis(false); return false;"
-                    style="color: #8b8fa8; text-decoration: underline;">Essayer en mode démo (sans connexion)</a>
-            </p>
+            <div class="hero-content">
+                <div class="hero-badge">✨ 100% Gratuit · Sans inscription · Sécurisé</div>
+                <h1 class="hero-title">
+                    Nettoyez votre boîte Gmail<br>
+                    <span class="gradient-text">en 2 minutes chrono</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Découvrez qui encombre votre inbox, supprimez les newsletters inutiles et libérez de l'espace de
+                    stockage.
+                    <strong>Sans rien installer.</strong>
+                </p>
 
-            <!-- Feature cards -->
-            <div class="features">
-                <div class="feature-card">
-                    <div class="feature-icon">🎯</div>
-                    <h3>Score de Santé</h3>
-                    <p>Un score de 0 à 100 pour savoir où vous en êtes</p>
+                <div class="hero-actions">
+                    <div class="scan-options">
+                        <label class="scan-option">
+                            <input type="radio" name="scan-limit" value="500">
+                            <span class="option-content">
+                                <span class="option-icon">⚡</span>
+                                <span class="option-text">Rapide</span>
+                                <span class="option-count">500</span>
+                            </span>
+                        </label>
+                        <label class="scan-option">
+                            <input type="radio" name="scan-limit" value="1000" checked>
+                            <span class="option-content">
+                                <span class="option-icon">👌</span>
+                                <span class="option-text">Complet</span>
+                                <span class="option-count">1000</span>
+                            </span>
+                        </label>
+                        <label class="scan-option">
+                            <input type="radio" name="scan-limit" value="2500">
+                            <span class="option-content">
+                                <span class="option-icon">🕵️</span>
+                                <span class="option-text">Profond</span>
+                                <span class="option-count">2500</span>
+                            </span>
+                        </label>
+                        <label class="scan-option">
+                            <input type="radio" name="scan-limit" value="5000">
+                            <span class="option-content">
+                                <span class="option-icon">🤖</span>
+                                <span class="option-text">Max</span>
+                                <span class="option-count">5000</span>
+                            </span>
+                        </label>
+                    </div>
+                    <button id="btn-connect" class="btn-primary" onclick="startLogin()">
+                        <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                            <polyline points="10 17 15 12 10 7" />
+                            <line x1="15" y1="12" x2="3" y2="12" />
+                        </svg>
+                        Scanner ma boîte mail
+                    </button>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📊</div>
-                    <h3>Analyse Visuelle</h3>
-                    <p>Graphiques clairs de vos catégories de mails</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">💡</div>
-                    <h3>Recommandations</h3>
-                    <p>Conseils personnalisés pour nettoyer votre inbox</p>
+
+                <p class="hero-trust">🔒 Aucune donnée stockée · Code Open Source</p>
+                <div class="hero-demo">
+                    <a href="#" onclick="startAnalysis(false); return false;" class="link-demo">Voir une démo sans
+                        connexion</a>
                 </div>
             </div>
         </div>
+
+        <!-- Features Section -->
+        <div id="features" class="features-section">
+            <h2 class="section-title">Pourquoi utiliser MailScrub ?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Privacy First</h3>
+                    <p>Nous ne stockons <strong>aucun email</strong>. Tout est analysé en temps réel dans votre
+                        navigateur et nos serveurs éphémères.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Ultra Rapide</h3>
+                    <p>Grâce à notre algorithme optimisé, analysez des milliers d'emails en quelques secondes seulement.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🧹</div>
+                    <h3>Actions Massives</h3>
+                    <p>Désabonnez-vous de 50 newsletters d'un coup ou supprimez tous les mails d'un expéditeur inconnu.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="landing-footer">
+            <div class="footer-content">
+                <div class="footer-logo">MailScrub.app</div>
+                <div class="footer-links">
+                    <a href="https://github.com/Noureddine-Hci/mailscrub-app" target="_blank">Code Source (GitHub)</a>
+                    <span>·</span>
+                    <a href="#">Conditions & Confidentialité</a>
+                </div>
+                <p class="copyright">© 2026 MailScrub. Fait avec ❤️ pour un web plus propre.</p>
+            </div>
+        </footer>
     </section>
 
     <!-- ════════════════════════════════════════════════════════ -->

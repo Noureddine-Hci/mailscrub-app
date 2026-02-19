@@ -36,7 +36,12 @@ function showSection(section) {
 }
 
 function resetToLanding() {
+    // Clear URL params
+    window.history.replaceState({}, document.title, "/");
     showSection($landing);
+
+    // Reset any state if needed
+    _analysisData = null;
 }
 
 
@@ -52,10 +57,20 @@ function resetToLanding() {
  */
 function startLogin() {
     // Save scan limit preference
-    const limitSelect = document.getElementById("scan-limit");
-    if (limitSelect) {
-        localStorage.setItem("mailscrub_scan_limit", limitSelect.value);
+    // Save scan limit preference (Radio Button version)
+    const checkedLimit = document.querySelector('input[name="scan-limit"]:checked');
+    const limitValue = checkedLimit ? checkedLimit.value : "1000";
+
+    localStorage.setItem("mailscrub_scan_limit", limitValue);
+
+
+    // Initial feedback on button
+    const btn = document.getElementById("btn-connect");
+    if (btn) {
+        btn.innerHTML = "🔄 Connexion...";
+        btn.disabled = true;
     }
+
     window.location.href = `${API_BASE}/auth/login`;
 }
 

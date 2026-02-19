@@ -309,9 +309,48 @@ git add -A && git commit -m "message" && git push origin main
 
 ### Problèmes connus résolus
 
-1. **`redirect_uri_mismatch`** : Cloud Run TLS proxy → forcé HTTPS dans `_get_redirect_uri()`
-2. **Gmail API 403** : API non activée → activée dans GCP Console
-3. **Pas de sélecteur de compte** : `prompt="consent"` → changé en `prompt="select_account consent"`
+1. **`redirect_uri_mismatch`** : Cloud Run TLS proxy → forcé HTTPS dans `_get_redirect_uri()`.
+2. **Gmail API 403** : API non activée → activée dans GCP Console.
+3. **Pas de sélecteur de compte** : `prompt="consent"` → changé en `prompt="select_account consent"`.
+4. **Menu déroulant invisible sur Windows** : Remplacé par des boutons radio (`<div class="scan-options">`) pour assurer la compatibilité cross-browser/OS.
+
+---
+
+## 🤖 Guide pour Reprise du Code (AI / Dev)
+
+Si vous reprenez ce projet, voici les points critiques à connaître :
+
+### 1. Structure Frontend (Vanilla JS)
+
+- **Pas de framework** : Tout est en HTML/CSS/JS pur. Pas de build step (Webpack/Vite).
+- **`app.js`** : Gère toute la logique (Routing basique, OAuth, Charts, Appels API).
+- **`style.css`** : Utilise des variables CSS (`:root`) pour le thémage. L'UI est "Glassmorphism" (transparence + flou).
+- **Scan Selector** : N'utilisez PAS de `<select>` natif pour le choix du nombre de mails. Utilisez la structure "Radio Button" (`input[type=radio]`) définie dans `index.html` pour éviter les bugs d'affichage OS.
+
+### 2. Authentification (OAuth 2.0)
+
+- **Fichier** : `backend/routers/auth.py`
+- **Redirect URI** : Le callback doit correspondre *exactement* à ceux whitelistés dans Google Cloud Console.
+  - Local : `http://localhost:8000/auth/callback` (Attention : `127.0.0.1` ne marche pas, le code force `localhost`).
+  - Prod : `https://mailscrub.app/auth/callback`
+
+### 3. Analyse (`analyzer.py`)
+
+- L'analyse est faite en mémoire (pas de BDD).
+- Les règles de catégorisation (Spam, Newsletter) sont basées sur des mots-clés simples dans `sender_name` et `subject`.
+- **Amélioration possible** : Ajouter une BDD (SQLite/Postgres) pour l'historique (prévu en Phase 3).
+
+### 4. Commandes de développement
+
+```bash
+# Lancer le serveur (Hot Reload)
+python -m uvicorn backend.main:app --reload --port 8000
+
+# Push modifications
+git add .
+git commit -m "feat: description"
+git push
+```
 
 ---
 

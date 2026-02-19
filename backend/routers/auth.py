@@ -39,6 +39,10 @@ def _get_redirect_uri(request: Request) -> str:
     # On Cloud Run, force https
     if os.getenv("K_SERVICE"):
         url = url.replace("http://", "https://")
+    else:
+        # Local dev: Force localhost to match Google Console allowlist
+        # even if accessed via 127.0.0.1
+        url = url.replace("127.0.0.1", "localhost")
 
     return url
 
