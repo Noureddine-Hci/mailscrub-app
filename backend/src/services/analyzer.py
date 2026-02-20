@@ -5,6 +5,12 @@ Calcule le Mail Health Score et catégorise les expéditeurs.
 Supporte deux modes :
     - analyze_demo() → données de démonstration
     - analyze_real(service) → vraies données Gmail via API
+
+NOTE POUR LES DÉVELOPPEURS / IA :
+- Confidentialité : Ce service est volontairement sans état (stateless). Aucune donnée email
+  n'est stockée localement ou en BDD. Tout est traité puis renvoyé au frontend.
+- Performance : L'API Gmail est sollicitée via des Batch Requests (voir analyze_real)
+  pour paralléliser la récupération des headers et réduire le temps de scan.
 """
 
 from __future__ import annotations

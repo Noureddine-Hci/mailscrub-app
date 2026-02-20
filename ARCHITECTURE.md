@@ -61,6 +61,13 @@ Structure stricte renvoyée au frontend.
 }
 ```
 
+### UI : Sélecteur de Scan
+
+Pour éviter les bugs d'affichage sur Windows/Chrome (menus déroulants natifs parfois incliquables ou invisibles sur fond sombre/glassmorphism), nous avons remplacé le `<select>` par un groupe de **Boutons Radio** stylisés (`.scan-options` dans `index.html`).
+
+- **Gestion JS** : `app.js` utilise `document.querySelector('input[name="scan-limit"]:checked')` pour récupérer la valeur avant connexion.
+- **CSS** : Les radios sont cachées (`display: none`) et le style est appliqué sur `.option-content` via le sélecteur `input:checked + .option-content`.
+
 ---
 
 ## 4. Points d'Attention (Gotchas)

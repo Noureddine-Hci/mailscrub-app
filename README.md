@@ -9,6 +9,9 @@
 
 ## 🎯 Qu'est-ce que MailScrub ?
 
+> [!NOTE]
+> **Statut du Projet (Février 2026)** : Le MVP est fonctionnel. La landing page a été refondue avec un look premium. Le scan Gmail supporte jusqu'à 5000 emails. Le projet est configuré pour un déploiement Cloud Run.
+
 MailScrub analyse votre boîte Gmail en quelques secondes et vous donne :
 
 - Un **score de santé mail** (0-100)
@@ -24,11 +27,11 @@ MailScrub analyse votre boîte Gmail en quelques secondes et vous donne :
 
 ---
 
-## 🏗️ Architecture
+### 🏗️ Architecture
 
 > 📘 **Voir le guide technique détaillé : [ARCHITECTURE.md](./ARCHITECTURE.md)**
 
-```
+```text
 MailScrub/
 ├── backend/                    # FastAPI (Python 3.12)
 │   ├── main.py                 # Point d'entrée — FastAPI app, middlewares, static files
@@ -54,7 +57,7 @@ MailScrub/
 ### Stack technique
 
 | Composant | Technologie |
-|-----------|-------------|
+| :--- | :--- |
 | Backend | Python 3.12, FastAPI 0.104+ |
 | Frontend | HTML5, CSS3 (glassmorphism), JavaScript ES6 |
 | Auth | Google OAuth 2.0 (`google-auth-oauthlib`) |
@@ -129,7 +132,7 @@ Ouvrir <http://localhost:8000>
 
 ### URIs de redirection autorisées
 
-```
+```text
 http://localhost:8000/auth/callback
 https://mailscrub-dashboard-722234333703.europe-west1.run.app/auth/callback
 https://mailscrub.app/auth/callback
@@ -137,7 +140,7 @@ https://mailscrub.app/auth/callback
 
 ### Scopes OAuth utilisés
 
-```
+```text
 https://www.googleapis.com/auth/gmail.readonly
 ```
 
@@ -170,7 +173,7 @@ gcloud run deploy mailscrub-dashboard \
 ### Infos Cloud Run
 
 | Propriété | Valeur |
-|-----------|--------|
+| :--- | :--- |
 | Service | `mailscrub-dashboard` |
 | Projet GCP | `mailscrub-app` |
 | Région | `europe-west1` |
@@ -184,7 +187,7 @@ Le domaine est mappé via `gcloud beta run domain-mappings`.
 **DNS (Netim - Fichier de zone)** :
 
 | Type | Nom | Valeur |
-|------|-----|--------|
+| :--- | :--- | :--- |
 | A | mailscrub.app | 216.239.32.21 |
 | A | mailscrub.app | 216.239.34.21 |
 | A | mailscrub.app | 216.239.36.21 |
@@ -195,32 +198,25 @@ Le domaine est mappé via `gcloud beta run domain-mappings`.
 
 ## 🔄 Flux OAuth détaillé
 
-```
-Utilisateur                   MailScrub                    Google
-    │                             │                           │
-    │  Clic "Connecter Gmail"     │                           │
-    │────────────────────────────>│                           │
-    │                             │  GET /auth/login          │
-    │                             │──────────────────────────>│
-    │                             │  302 → consent screen     │
-    │<────────────────────────────│<──────────────────────────│
-    │                             │                           │
-    │  L'utilisateur accepte      │                           │
-    │                             │  GET /auth/callback?code= │
-    │                             │<──────────────────────────│
-    │                             │  Exchange code → token    │
-    │                             │──────────────────────────>│
-    │                             │  Credentials reçues       │
-    │                             │<──────────────────────────│
-    │                             │  Store in session         │
-    │  302 → /?authenticated=true │                           │
-    │<────────────────────────────│                           │
-    │                             │                           │
-    │  GET /api/analyze           │                           │
-    │────────────────────────────>│  gmail.messages.list()    │
-    │                             │──────────────────────────>│
-    │  JSON résultats             │  Messages data            │
-    │<────────────────────────────│<──────────────────────────│
+```mermaid
+sequenceDiagram
+    participant Utilisateur
+    participant MailScrub
+    participant Google
+    
+    Utilisateur->>MailScrub: Clic "Connecter Gmail"
+    MailScrub->>Google: GET /auth/login
+    Google->>Utilisateur: 302 -> consent screen
+    Utilisateur->>Google: L'utilisateur accepte
+    Google->>MailScrub: GET /auth/callback?code=
+    MailScrub->>Google: Exchange code -> token
+    Google->>MailScrub: Credentials reçues
+    MailScrub->>MailScrub: Store in session
+    MailScrub->>Utilisateur: 302 -> /?authenticated=true
+    Utilisateur->>MailScrub: GET /api/analyze
+    MailScrub->>Google: gmail.messages.list()
+    Google->>MailScrub: Messages data
+    MailScrub->>Utilisateur: JSON résultats
 ```
 
 ### Points techniques importants
@@ -301,7 +297,7 @@ git add -A && git commit -m "message" && git push origin main
 ### Variables d'environnement requises
 
 | Variable | Description | Où |
-|----------|-------------|-----|
+| :--- | :--- | :--- |
 | `GOOGLE_CLIENT_ID` | OAuth client ID | `.env` local / Cloud Run env |
 | `GOOGLE_CLIENT_SECRET` | OAuth client secret | `.env` local / Cloud Run env |
 | `SECRET_KEY` | Clé de signature session | `.env` local / Cloud Run env |

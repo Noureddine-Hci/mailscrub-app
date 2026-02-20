@@ -3,6 +3,13 @@
  *
  * Gère le flux : Landing → OAuth Login → Loading → Dashboard
  * Appelle l'API backend et rend les charts avec Chart.js.
+ *
+ * NOTE POUR LES DÉVELOPPEURS / IA :
+ * - État Global : Les variables préfixées par '_' (ex: _allSenders) stockent les données
+ *   après le scan pour éviter de re-solliciter l'API Gmail inutilement.
+ * - Routage : L'application est une SPA. Le routage est géré par showSection().
+ * - Sécurisation : Les jetons OAuth ne sont pas visibles ici, ils sont gérés par le
+ *   backend via des cookies sécurisés.
  */
 
 // ── Sections ──────────────────────────────────────────────
