@@ -1,5 +1,6 @@
 """
 MailScrub.app — Auth Router
+Version: 1.0.0 (Official Release)
 
 Routes d'authentification OAuth 2.0 avec Google.
 Flux : /auth/login → Google → /auth/callback → session
@@ -15,8 +16,15 @@ from google_auth_oauthlib.flow import Flow
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── OAuth Config ──────────────────────────────────────────────
+import json
+import base64
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/gmail.modify"
+]
 
 # Allow HTTP only for local development
 if os.getenv("K_SERVICE"):
@@ -122,22 +130,44 @@ async def callback(request: Request, code: str = "", state: str = ""):
         "scopes": list(credentials.scopes),
     }
 
+    # Decode id_token to get user profile
+    if credentials.id_token:
+        try:
+            # JWT format: header.payload.signature
+            payload_segment = credentials.id_token.split('.')[1]
+            # Add padding
+            padding = '=' * (4 - len(payload_segment) % 4)
+            payload_bytes = base64.urlsafe_b64decode(payload_segment + padding)
+            payload = json.loads(payload_bytes)
+            
+            request.session["user_profile"] = {
+                "email": payload.get("email"),
+                "picture": payload.get("picture"),
+                "name": payload.get("name")
+            }
+        except Exception as e:
+            print(f"[WARNING] Could not decode id_token: {e}")
+
     # Redirect to the dashboard (frontend will detect auth and start analysis)
     return RedirectResponse("/?authenticated=true")
 
 
 @router.get("/status")
 async def auth_status(request: Request):
-    """Vérifie si l'utilisateur est connecté (a des credentials en session)."""
+    """Vérifie si l'utilisateur est connecté (a des credentials en session) et renvoie son profil."""
     creds = request.session.get("credentials")
+    profile = request.session.get("user_profile")
+    
     if creds:
         return {
             "authenticated": True,
             "mode": "gmail",
+            "profile": profile
         }
     return {
         "authenticated": False,
         "mode": "none",
+        "profile": None
     }
 
 

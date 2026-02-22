@@ -1,5 +1,6 @@
 /**
  * MailScrub.app — Frontend Application
+ * Version: 1.0.0 (Official Release)
  *
  * Gère le flux : Landing → OAuth Login → Loading → Dashboard
  * Appelle l'API backend et rend les charts avec Chart.js.
@@ -86,15 +87,113 @@ function startLogin() {
  * If so, automatically start the analysis.
  */
 async function checkAuthOnLoad() {
+    let isAuthenticated = false;
+    let userProfile = null;
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("authenticated") === "true") {
         // Clean the URL (remove ?authenticated=true)
         window.history.replaceState({}, document.title, "/");
+        isAuthenticated = true;
+        // We still need to fetch the profile to show it in the header
+        try {
+            const res = await fetch(`${API_BASE}/auth/status`);
+            if (res.ok) {
+                const data = await res.json();
+                userProfile = data.profile;
+            }
+        } catch (e) {
+            console.error("Failed to fetch profile", e);
+        }
 
-        // Start analysis with real data
-        await startAnalysis(true);
-        return;
+        // Auto-start analysis after login
+        startAnalysis(true);
+    } else {
+        // SILENT AUTH CHECK
+        // If not coming back from OAuth, check if server still has our session
+        try {
+            const res = await fetch(`${API_BASE}/auth/status`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.authenticated && data.mode === 'gmail') {
+                    console.log("[Auth] Session active.");
+                    isAuthenticated = true;
+                    userProfile = data.profile;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to check auth status silently", e);
+        }
+    }
+
+    // Configure the main button based on auth status
+    const btnConnect = document.getElementById("btn-connect");
+    if (btnConnect) {
+        if (isAuthenticated) {
+            btnConnect.onclick = () => {
+                const checkedLimit = document.querySelector('input[name="scan-limit"]:checked');
+                if (checkedLimit) {
+                    localStorage.setItem("mailscrub_scan_limit", checkedLimit.value);
+                }
+                startAnalysis(true);
+            };
+        } else {
+            // Default logged-out state
+            btnConnect.onclick = startLogin;
+        }
+    }
+
+    // Update topbar profile if available
+    const emailSpan = document.getElementById("user-email");
+    const avatarImg = document.getElementById("user-avatar");
+
+    // Update landing page profile
+    const landingEmailSpan = document.getElementById("landing-user-email");
+    const landingAvatarImg = document.getElementById("landing-user-avatar");
+    const landingBadge = document.getElementById("landing-user-badge");
+    const landingLoginBtn = document.getElementById("btn-landing-login");
+    const landingLogoutBtn = document.getElementById("btn-landing-logout");
+
+    if (isAuthenticated && userProfile) {
+        if (emailSpan && userProfile.email) {
+            emailSpan.textContent = userProfile.email;
+        }
+        if (avatarImg && userProfile.picture) {
+            avatarImg.src = userProfile.picture;
+            avatarImg.classList.remove('hidden');
+        }
+
+        // Update landing page header
+        if (landingBadge) {
+            if (landingEmailSpan) landingEmailSpan.textContent = userProfile.email;
+            if (landingAvatarImg) landingAvatarImg.src = userProfile.picture;
+
+            landingBadge.style.display = 'flex';
+            landingBadge.classList.remove('hidden');
+
+            if (landingLogoutBtn) {
+                landingLogoutBtn.style.display = 'inline-block';
+                landingLogoutBtn.classList.remove('hidden');
+            }
+            if (landingLoginBtn) {
+                landingLoginBtn.style.display = 'none';
+                landingLoginBtn.classList.add('hidden');
+            }
+        }
+    } else {
+        // Reset landing to default if not authenticated
+        if (landingBadge) {
+            landingBadge.style.display = 'none';
+            landingBadge.classList.add('hidden');
+        }
+        if (landingLogoutBtn) {
+            landingLogoutBtn.style.display = 'none';
+            landingLogoutBtn.classList.add('hidden');
+        }
+        if (landingLoginBtn) {
+            landingLoginBtn.style.display = 'inline-block';
+            landingLoginBtn.classList.remove('hidden');
+        }
     }
 }
 
@@ -859,7 +958,9 @@ async function unsubscribeSender(sender, rowIndex) {
 
     // Get button for feedback
     let $btn = null;
-    if (rowIndex !== undefined) {
+    if (rowIndex === 'modal') {
+        $btn = document.getElementById('modal-btn-unsubscribe');
+    } else if (rowIndex !== undefined) {
         const $row = document.getElementById(`sender-row-${rowIndex}`);
         if ($row) $btn = $row.querySelector(".btn-unsub");
     }
@@ -980,6 +1081,8 @@ document.addEventListener("DOMContentLoaded", checkAuthOnLoad);
 
 // ═══════════════════════════════════════════════════════════
 // MODAL LOGIC (Sender Details)
+// Ouvre une fenêtre détaillant les emails d'un expéditeur spécifique.
+// Permet la sélection multiple, la suppression, et le désabonnement.
 // ═══════════════════════════════════════════════════════════
 
 function openSenderDetails(sender, index) {
@@ -998,22 +1101,73 @@ function openSenderDetails(sender, index) {
 
     const messages = sender.messages || []; // New field from backend
     if (messages.length === 0) {
-        $list.innerHTML = '<li class="email-item" style="justify-content:center; color:var(--text-muted)">Aucun détail disponible</li>';
+        $list.innerHTML = '<li class="email-item" style="justify-content:center; color:var(--text-muted)">Aucun d\u00E9tail disponible</li>';
     } else {
+        // Add a "Select All" checkbox at the top
+        const liAll = document.createElement('li');
+        liAll.className = 'email-item select-all-item';
+        liAll.style.background = 'rgba(255,255,255,0.02)';
+        liAll.style.borderBottom = '1px solid var(--border-card)';
+        liAll.innerHTML = `
+            <div class="email-checkbox">
+                <input type="checkbox" id="modal-select-all" title="Tout s\u00E9lectionner">
+            </div>
+            <span class="email-subject" style="font-weight: 600; color: var(--text-primary);">S\u00E9lectionner les ${Math.min(messages.length, 50)} derniers emails</span>
+            <div class="email-meta"></div>
+        `;
+        $list.appendChild(liAll);
+
+        // Listen to "Select All"
+        const selectAllCb = liAll.querySelector('#modal-select-all');
+        selectAllCb.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            const itemCbs = $list.querySelectorAll('.email-item-checkbox');
+            itemCbs.forEach(cb => cb.checked = isChecked);
+            updateSelectionBtn();
+        });
+
         // Limit to 50 to avoid lag if 1000 items
         messages.slice(0, 50).forEach(msg => {
             const dateStr = new Date(msg.date * 1000).toLocaleDateString();
             const li = document.createElement('li');
             li.className = 'email-item';
+            // Store the ID on the list item for easy retrieval
+            li.dataset.msgId = msg.id;
             li.innerHTML = `
-                <span class="email-subject">${msg.subject}</span>
+                <div class="email-checkbox">
+                    <input type="checkbox" class="email-item-checkbox" value="${msg.id}">
+                </div>
+                <span class="email-subject" title="${msg.subject}">${msg.subject}</span>
                 <div class="email-meta">
                     <span>${dateStr}</span>
                     <span>${formatSize(msg.size)}</span>
                 </div>
             `;
             $list.appendChild(li);
+
+            // Add listener to update button state
+            li.querySelector('.email-item-checkbox').addEventListener('change', updateSelectionBtn);
         });
+    }
+
+    // Configure Delete Selection Button (Dynamic inject if index.html is cached)
+    let $btnDeleteSel = document.getElementById('modal-btn-delete-selected');
+    if (!$btnDeleteSel) {
+        $btnDeleteSel = document.createElement('button');
+        $btnDeleteSel.id = 'modal-btn-delete-selected';
+        $btnDeleteSel.className = 'btn-primary hidden';
+        $btnDeleteSel.style.padding = '10px 20px';
+        $btnDeleteSel.style.fontSize = '0.95rem';
+        const $delBtn = document.getElementById('modal-btn-delete');
+        if ($delBtn && $delBtn.parentNode) {
+            $delBtn.parentNode.insertBefore($btnDeleteSel, $delBtn);
+        }
+    }
+    if ($btnDeleteSel) {
+        $btnDeleteSel.onclick = deleteSelectedFromModal;
+        $btnDeleteSel.classList.add('hidden'); // Initially hidden
+        $btnDeleteSel.style.setProperty('display', 'none', 'important');
+        updateSelectionBtn(); // Set state based on selection
     }
 
     // Configure Delete Button
@@ -1022,8 +1176,45 @@ function openSenderDetails(sender, index) {
     $btnDelete.textContent = `🗑️ Tout supprimer (${sender.count})`;
     $btnDelete.disabled = false;
 
+    // Configure Unsubscribe Button
+    const $btnUnsub = document.getElementById('modal-btn-unsubscribe');
+    if ($btnUnsub) {
+        if (sender.unsubscribe_link) {
+            $btnUnsub.classList.remove('hidden');
+            $btnUnsub.style.setProperty('display', 'inline-flex', 'important');
+            $btnUnsub.onclick = () => unsubscribeSender(sender, 'modal');
+            $btnUnsub.textContent = "🚫 Se désabonner";
+            $btnUnsub.disabled = false;
+        } else {
+            $btnUnsub.classList.add('hidden');
+            $btnUnsub.style.setProperty('display', 'none', 'important');
+        }
+    }
+
     // Show Modal
     document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+// Helper to update the "Delete Selected" button state
+function updateSelectionBtn() {
+    const $list = document.getElementById('modal-email-list');
+    if (!$list) return;
+    const checkedBoxes = Array.from($list.querySelectorAll('.email-item-checkbox:checked'));
+    const $btn = document.getElementById('modal-btn-delete-selected');
+
+    if ($btn) {
+        if (checkedBoxes.length > 0) {
+            $btn.disabled = false;
+            $btn.textContent = `\uD83D\uDDD1\uFE0F Supprimer s\u00E9lection (${checkedBoxes.length})`;
+            $btn.classList.remove('hidden');
+            $btn.style.setProperty('display', 'inline-flex', 'important'); // FOREVER VISIBLE
+        } else {
+            $btn.disabled = true;
+            $btn.textContent = `\uD83D\uDDD1\uFE0F Supprimer s\u00E9lection (0)`;
+            $btn.classList.add('hidden');
+            $btn.style.setProperty('display', 'none', 'important'); // FOREVER HIDDEN
+        }
+    }
 }
 
 function closeModal() {
@@ -1074,7 +1265,7 @@ async function deleteFromModal() {
                 // Disable button in row too
                 const $rowBtn = $row.querySelector('.btn-trash');
                 if ($rowBtn) {
-                    $rowBtn.textContent = '✅';
+                    $rowBtn.textContent = '\u2705';
                     $rowBtn.disabled = true;
                 }
             }
@@ -1089,12 +1280,164 @@ async function deleteFromModal() {
             }
 
         } else {
-            alert(`Erreur : ${data.message || "Échec"}`);
-            $btn.textContent = "❌ Erreur";
+            alert(`Erreur : ${data.message || "\u00C9chec"}`);
+            $btn.textContent = "\u274C Erreur";
         }
     } catch (err) {
         console.error(err);
         alert("Erreur serveur");
-        $btn.textContent = "❌ Erreur";
+        $btn.textContent = "\u274C Erreur";
     }
+}
+
+async function deleteSelectedFromModal() {
+    if (!_currentSender) return;
+
+    const $list = document.getElementById('modal-email-list');
+    const checkedBoxes = Array.from($list.querySelectorAll('.email-item-checkbox:checked'));
+
+    if (checkedBoxes.length === 0) return;
+
+    const messageIdsToDelete = checkedBoxes.map(cb => cb.value);
+    const $btn = document.getElementById('modal-btn-delete-selected');
+
+    if (!confirm(`Confirmer la suppression de ${messageIdsToDelete.length} email(s) s\u00E9lectionn\u00E9(s) ?`)) return;
+
+    // Loading UI
+    if ($btn) {
+        $btn.textContent = "\u23F3 Suppression...";
+        $btn.disabled = true;
+    }
+    const $delAllBtn = document.getElementById('modal-btn-delete');
+    if ($delAllBtn) $delAllBtn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message_ids: messageIdsToDelete,
+                mode: "trash",
+            }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && !data.error) {
+            // Remove the deleted items from the modal list visually
+            checkedBoxes.forEach(cb => {
+                const li = cb.closest('li');
+                if (li) li.remove();
+            });
+
+            // Update the sender's data in memory so they aren't fully deleted if partially deleted
+            _currentSender.message_ids = _currentSender.message_ids.filter(id => !messageIdsToDelete.includes(id));
+            _currentSender.count = _currentSender.message_ids.length;
+
+            // Re-render modal info
+            const countEl = document.getElementById('modal-count');
+            if (countEl) countEl.textContent = _currentSender.count;
+            if ($delAllBtn) {
+                $delAllBtn.textContent = `\uD83D\uDDD1\uFE0F Tout supprimer (${_currentSender.count})`;
+                $delAllBtn.disabled = false;
+            }
+
+            // Re-eval select btn
+            updateSelectionBtn();
+
+            // If all emails are gone, close modal and strike through
+            if (_currentSender.count === 0) {
+                closeModal();
+                const $row = document.getElementById(`sender-row-${_currentSenderIndex}`);
+                if ($row) {
+                    $row.style.opacity = "0.4";
+                    $row.style.textDecoration = "line-through";
+                    const $rowBtn = $row.querySelector('.btn-trash');
+                    if ($rowBtn) {
+                        $rowBtn.textContent = '\u2705';
+                        $rowBtn.disabled = true;
+                    }
+                }
+            } else {
+                // Update the row in the main list visually (re-render just to be safe or update span)
+                const $row = document.getElementById(`sender-row-${_currentSenderIndex}`);
+                if ($row) {
+                    const countSpan = $row.querySelector('.sender-count');
+                    if (countSpan) countSpan.innerHTML = `<strong>${_currentSender.count}</strong> emails`;
+                }
+            }
+
+        } else {
+            alert(`Erreur : ${data.message || "\u00C9chec"}`);
+            updateSelectionBtn();
+            if ($delAllBtn) $delAllBtn.disabled = false;
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erreur serveur");
+        updateSelectionBtn();
+        const $delAllBtn = document.getElementById('modal-btn-delete');
+        if ($delAllBtn) $delAllBtn.disabled = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCORE MODAL
+// ═══════════════════════════════════════════════════════════
+
+function openScoreDetails() {
+    if (!_analysisData || !_analysisData.score_details) return;
+
+    const $modal = document.getElementById('modal-score');
+    const $list = document.getElementById('score-details-list');
+
+    if (!$modal || !$list) return;
+
+    $list.innerHTML = '';
+
+    _analysisData.score_details.forEach(detail => {
+        const item = document.createElement('div');
+        item.className = 'score-detail-item';
+
+        let valueStr = detail.value > 0 ? `+${detail.value}` : `${detail.value}`;
+        if (detail.type === 'base') valueStr = `${detail.value}`;
+
+        let colorClass = '';
+        if (detail.type === 'penalty') colorClass = 'text-danger';
+        else if (detail.type === 'bonus') colorClass = 'text-success';
+        else colorClass = 'text-neutral';
+
+        item.innerHTML = `
+            <span class="score-detail-label">${detail.label}</span>
+            <span class="score-detail-value ${colorClass}"><strong>${valueStr}</strong></span>
+        `;
+        $list.appendChild(item);
+    });
+
+    // Add a final row for the total
+    const totalItem = document.createElement('div');
+    totalItem.className = 'score-detail-item score-detail-total';
+    totalItem.innerHTML = `
+        <span class="score-detail-label"><strong>Score Final</strong></span>
+        <span class="score-detail-value"><strong>${_analysisData.health_score} / 100</strong></span>
+    `;
+    $list.appendChild(totalItem);
+
+    $modal.classList.remove('hidden');
+}
+
+function closeScoreModal() {
+    const $modal = document.getElementById('modal-score');
+    if ($modal) {
+        $modal.classList.add('hidden');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOGOUT
+// ═══════════════════════════════════════════════════════════
+
+function logout() {
+    // Clear backend session and redirect to landing
+    window.location.href = `${API_BASE}/auth/logout`;
 }

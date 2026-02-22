@@ -41,7 +41,15 @@
             <div class="nav-links">
                 <a href="#features" class="nav-link">Fonctionnalités</a>
                 <a href="#faq" class="nav-link">FAQ</a>
-                <button class="btn-ghost" onclick="startLogin()">Se connecter</button>
+                <button class="btn-ghost" id="btn-landing-login" onclick="startLogin()">Se connecter</button>
+                <span class="user-badge hidden" id="landing-user-badge"
+                    style="display: none; align-items: center; gap: 8px;">
+                    <img id="landing-user-avatar" src="" alt="Avatar"
+                        style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                    <span id="landing-user-email">Non connecté</span>
+                </span>
+                <button class="btn-ghost hidden" id="btn-landing-logout" onclick="logout()"
+                    style="display: none;">Déconnexion</button>
             </div>
         </nav>
 
@@ -93,7 +101,7 @@
                             </span>
                         </label>
                     </div>
-                    <button id="btn-connect" class="btn-primary" onclick="startLogin()">
+                    <button id="btn-connect" class="btn-primary">
                         <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none"
                             stroke="currentColor" stroke-width="2">
                             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -187,8 +195,12 @@
                 <span class="logo-badge">.app</span>
             </div>
             <div class="nav-links">
-                <span class="user-badge" id="user-email">demo@mailscrub.app</span>
-                <button class="btn-ghost" onclick="resetToLanding()">Nouvelle analyse</button>
+                <span class="user-badge" id="user-badge" style="display: flex; align-items: center; gap: 8px;">
+                    <img id="user-avatar" src="" alt="Avatar" class="hidden"
+                        style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                    <span id="user-email">Non connecté</span>
+                </span>
+                <button class="btn-ghost" id="btn-logout" onclick="logout()">Déconnexion</button>
             </div>
         </nav>
 
@@ -205,7 +217,7 @@
                 <!-- Score Card -->
                 <div class="card card-score">
                     <h3 class="card-title">Mail Health Score</h3>
-                    <div class="score-container">
+                    <div class="score-container score-clickable-area" onclick="openScoreDetails()">
                         <div class="score-ring" id="score-ring">
                             <svg viewBox="0 0 200 200">
                                 <circle class="score-bg" cx="100" cy="100" r="85" />
@@ -218,6 +230,11 @@
                             </div>
                         </div>
                         <p class="score-label" id="score-label">Calcul en cours...</p>
+                        <div
+                            style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-top:10px; opacity:0.8;">
+                            <span style="display:inline-block; margin-right:4px;">💡</span> Cliquez pour comprendre le
+                            score
+                        </div>
                     </div>
                 </div>
 
@@ -349,15 +366,49 @@
 
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal()">Fermer</button>
-                <button class="btn-danger" id="modal-btn-delete">
-                    🗑️ Tout supprimer
-                </button>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-secondary hidden" id="modal-btn-unsubscribe" title="Se désabonner">
+                        🚫 Se désabonner
+                    </button>
+                    <button class="btn-primary hidden" id="modal-btn-delete-selected"
+                        style="padding: 10px 20px; font-size: 0.95rem;">
+                        &#x1F5D1;&#xFE0F Supprimer la s&#xE9;lection
+                    </button>
+                    <button class="btn-danger" id="modal-btn-delete">
+                        &#x1F5D1;&#xFE0F Tout supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- SCORE DETAILS MODAL                                      -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div id="modal-score" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">Détail de votre score</h3>
+                    <p class="modal-subtitle">Comment le Mail Health Score est calculé</p>
+                </div>
+                <button class="btn-icon-close" onclick="closeScoreModal()">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="score-details-list" id="score-details-list">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer" style="justify-content: flex-end;">
+                <button class="btn-secondary" onclick="closeScoreModal()" style="width: 100%;">Fermer</button>
             </div>
         </div>
     </div>
 
     <!-- App JS -->
-    <script src="/js/app.js?v=4"></script>
+    <script src="/js/app.js?v=11"></script>
 </body>
 
 </html>

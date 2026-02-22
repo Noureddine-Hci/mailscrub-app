@@ -1,5 +1,6 @@
 """
 MailScrub.app — Mail Analyzer Service
+Version: 1.0.0 (Official Release)
 
 Calcule le Mail Health Score et catégorise les expéditeurs.
 Supporte deux modes :
@@ -34,6 +35,7 @@ class AnalysisResult:
 
     mode: str
     health_score: int
+    score_details: list[dict]
     total_emails: int
     categories: dict[str, int]
     category_percentages: dict[str, float]
@@ -191,7 +193,9 @@ class MailAnalyzer:
 
         if total_emails == 0:
             empty_result = AnalysisResult(
+                mode="gmail",
                 health_score=100,
+                score_details=[{"label": "Boîte vide", "value": 100, "type": "base"}],
                 total_emails=0,
                 categories={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
                 category_percentages={"newsletter": 0, "notification": 0, "human": 0, "spam": 0},
@@ -374,7 +378,7 @@ class MailAnalyzer:
             }
 
             # Score
-            health_score = self._calculate_score(category_pct)
+            health_score, score_details = self._calculate_score(category_pct)
 
             # Stats
             newsletter_sources = sum(
@@ -399,6 +403,7 @@ class MailAnalyzer:
             result = AnalysisResult(
                 mode="gmail",
                 health_score=health_score,
+                score_details=score_details,
                 total_emails=total_emails,
                 categories=category_counts,
                 category_percentages=category_pct,
@@ -486,7 +491,7 @@ class MailAnalyzer:
             for cat, count in category_counts.items()
         }
 
-        health_score = self._calculate_score(category_pct)
+        health_score, score_details = self._calculate_score(category_pct)
         recommendations = self._generate_recommendations(
             category_pct, senders_with_counts
         )
@@ -517,6 +522,7 @@ class MailAnalyzer:
         result = AnalysisResult(
             mode="demo",
             health_score=health_score,
+            score_details=score_details,
             total_emails=total,
             categories=category_counts,
             category_percentages=category_pct,
@@ -530,29 +536,50 @@ class MailAnalyzer:
 
     # ── SCORE CALCULATION ─────────────────────────────────────
 
-    def _calculate_score(self, category_pct: dict[str, float]) -> int:
+    def _calculate_score(self, category_pct: dict[str, float]) -> tuple[int, list[dict]]:
         """
-        Calcule le score de santé (0-100).
+        Calcule le score de santé (0-100) et retourne le détail.
 
         100 = boîte parfaite (majorité de mails humains, pas de spam)
         0   = boîte catastrophique (que du spam et newsletters)
         """
         score = 100.0
+        details = [{"label": "Score de base", "value": 100, "type": "base"}]
 
         # Pénalité spam (fort impact)
-        score -= category_pct.get("spam", 0) * 3
+        spam_pct = category_pct.get("spam", 0)
+        if spam_pct > 0:
+            penalty = spam_pct * 3
+            score -= penalty
+            details.append({
+                "label": f"Spam détecté ({spam_pct}%)", 
+                "value": -int(penalty), 
+                "type": "penalty"
+            })
 
         # Pénalité newsletters (impact modéré)
         newsletter_pct = category_pct.get("newsletter", 0)
         if newsletter_pct > 30:
-            score -= (newsletter_pct - 30) * 1.5
+            penalty = (newsletter_pct - 30) * 1.5
+            score -= penalty
+            details.append({
+                "label": f"Excès de newsletters ({newsletter_pct}%)", 
+                "value": -int(penalty), 
+                "type": "penalty"
+            })
 
         # Bonus mails humains
         human_pct = category_pct.get("human", 0)
         if human_pct > 40:
             score += 10
+            details.append({
+                "label": f"Forte proportion d'humains ({human_pct}%)", 
+                "value": 10, 
+                "type": "bonus"
+            })
 
-        return max(0, min(100, int(score)))
+        final_score = max(0, min(100, int(score)))
+        return final_score, details
 
     def _generate_recommendations(
         self,

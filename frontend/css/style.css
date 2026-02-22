@@ -13,6 +13,11 @@
     box-sizing: border-box;
 }
 
+/**
+ * MailScrub.app — Main Stylesheet
+ * Version: 1.0.0 (Official Release)
+ */
+
 :root {
     /* Colors */
     --bg-primary: #06070f;
@@ -175,9 +180,9 @@ body {
 .logo {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-weight: 700;
-    font-size: 1.3rem;
+    font-size: 1.15rem;
     text-decoration: none;
     color: inherit;
 }
@@ -202,13 +207,13 @@ body {
 .nav-links {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 18px;
 }
 
 .nav-link {
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 500;
     transition: color 0.2s;
 }
@@ -219,7 +224,7 @@ body {
 
 .user-badge {
     color: var(--text-secondary);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 
 
@@ -268,7 +273,7 @@ body {
 }
 
 .hero-title {
-    font-size: clamp(2.5rem, 6vw, 4.2rem);
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
     font-weight: 800;
     line-height: 1.15;
     margin-bottom: 24px;
@@ -283,7 +288,7 @@ body {
 }
 
 .hero-subtitle {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     color: var(--text-secondary);
     line-height: 1.7;
     max-width: 650px;
@@ -378,11 +383,11 @@ body {
 .btn-primary {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 16px 36px;
+    gap: 8px;
+    padding: 14px 30px;
     background: var(--gradient-primary);
     color: #fff;
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 600;
     font-family: var(--font);
     border: none;
@@ -410,10 +415,10 @@ body {
     background: transparent;
     color: var(--text-secondary);
     border: 1px solid var(--border-card);
-    padding: 8px 18px;
+    padding: 6px 14px;
     border-radius: var(--radius-sm);
     font-family: var(--font);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -778,8 +783,11 @@ body {
 }
 
 .sender-row:hover {
-    background: rgba(99, 115, 255, 0.05);
-    border-color: var(--border-card);
+    background: rgba(99, 115, 255, 0.20);
+    border-color: rgba(99, 115, 255, 0.6);
+    box-shadow: inset 0 0 15px rgba(99, 115, 255, 0.15);
+    cursor: pointer;
+    transform: translateX(4px);
 }
 
 .sender-rank {
@@ -1264,7 +1272,7 @@ body {
     border: 1px solid var(--border-card);
     border-radius: var(--radius);
     width: 90%;
-    max-width: 600px;
+    max-width: 800px;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
@@ -1353,11 +1361,29 @@ body {
     padding: 10px 14px;
     border-radius: var(--radius-sm);
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
+    grid-template-columns: 24px 1fr auto;
+    gap: 12px;
     align-items: center;
     font-size: 0.9rem;
     border: 1px solid transparent;
+}
+
+.email-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.email-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-blue);
+}
+
+.select-all-item:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: var(--border-card) !important;
 }
 
 .email-item:hover {
@@ -1423,4 +1449,57 @@ body {
     background: var(--accent-red);
     color: #fff;
     box-shadow: 0 4px 15px rgba(255, 77, 106, 0.4);
+}
+
+/* Score Modal Styles */
+.score-clickable-area {
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: var(--radius-md);
+    padding: 10px;
+    border: 1px solid transparent;
+    /* Prepare for hover border */
+}
+
+.score-clickable-area:hover {
+    transform: scale(1.02);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    /* Similar to sender-row hover */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.score-details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.score-detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.score-detail-total {
+    border: 2px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    margin-top: 8px;
+    font-size: 1.1rem;
+}
+
+.text-danger {
+    color: var(--accent-red);
+}
+
+.text-success {
+    color: var(--success);
+}
+
+.text-neutral {
+    color: var(--text-primary);
 }

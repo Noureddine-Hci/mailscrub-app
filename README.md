@@ -1,4 +1,4 @@
-# 🧹 MailScrub.app
+# 🧹 MailScrub.app (v1.0.0 Officielle)
 
 > **Diagnostic de santé pour votre boîte mail — Libérez votre inbox en 2 minutes.**
 
@@ -10,7 +10,7 @@
 ## 🎯 Qu'est-ce que MailScrub ?
 
 > [!NOTE]
-> **Statut du Projet (Février 2026)** : Le MVP est fonctionnel. La landing page a été refondue avec un look premium. Le scan Gmail supporte jusqu'à 5000 emails. Le projet est configuré pour un déploiement Cloud Run.
+> **Statut du Projet (Février 2026)** : Sortie de la V1 Officielle ! La landing page a été refondue avec un look premium, incluant les avatars Google, la sélection des limites de scan (jusqu'à 5000), le traitement par lots API, et le désabonnement en un clic depuis les fenêtres détaillées. Le projet est configuré pour un déploiement Cloud Run.
 
 MailScrub analyse votre boîte Gmail en quelques secondes et vous donne :
 

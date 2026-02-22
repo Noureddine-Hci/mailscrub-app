@@ -4,6 +4,18 @@ Toutes les modifications notables de ce projet seront documentées ici.
 
 ---
 
+## [v1.0.0 Officielle] — 2026-02-21
+
+### 🎉 Lancement Officiel V1
+
+#### Ajouté & Amélioré
+- **Photo de profil Google** : Intégration dynamique de l'avatar et de l'email de l'utilisateur sur la page d'accueil via le flow OAuth.
+- **Limites de scan** : Sauvegarde et application instantanée du volume d'emails à scanner, même pour les utilisateurs déjà connectés.
+- **Bouton Désabonner (Modal)** : Ajout d'un bouton de désabonnement "one-click" directement à l'intérieur de la fenêtre détaillée d'un expéditeur.
+- **Documentation du projet** : Révision de tous les scripts pour y inclure des en-têtes officiels V1.0.0.
+
+---
+
 ## [v1.3.0] — 2026-02-18
 
 ### 🐛 Correctifs Critiques (Infinite Loading & UI)
