@@ -61,6 +61,30 @@
     --radius-xs: 6px;
 }
 
+/* ── Light Theme Variables ───────────────────────────── */
+
+body.light-theme {
+    /* Colors */
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg-card-hover: rgba(245, 247, 255, 0.95);
+    --border-card: rgba(99, 115, 255, 0.15);
+    --border-card-hover: rgba(99, 115, 255, 0.3);
+
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    /* Shadows (softer for light mode) */
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --shadow-glow: 0 0 40px rgba(99, 115, 255, 0.15);
+
+    /* Glassmorphism adjustments */
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: 1px solid rgba(99, 115, 255, 0.15);
+}
+
 html {
     scroll-behavior: smooth;
 }
@@ -72,6 +96,15 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    /* Smooth theme transition */
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Also transition cards and headers to avoid jarring jumps */
+.stats-grid .stat-card,
+.dashboard-card,
+.navbar {
+    transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
 .hidden {
@@ -980,9 +1013,34 @@ body {
     border-color: var(--accent-red);
 }
 
+.btn-danger:hover {
+    background: rgba(255, 77, 106, 0.2);
+    border-color: var(--accent-red);
+}
+
 .btn-unsub:hover {
     background: rgba(255, 170, 64, 0.15);
     border-color: var(--accent-orange);
+}
+
+/* Theme Toggle Button */
+.theme-btn {
+    font-size: 1.2rem;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 50%;
+}
+
+.theme-btn:hover {
+    background: var(--bg-card);
+    border-color: var(--border-card-hover);
+    transform: scale(1.05);
 }
 
 
@@ -1349,6 +1407,29 @@ body {
     font-weight: 600;
 }
 
+.smart-select-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-smart {
+    background: rgba(99, 115, 255, 0.05);
+    border: 1px solid rgba(99, 115, 255, 0.2);
+    color: var(--accent-blue);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-smart:hover {
+    background: rgba(99, 115, 255, 0.15);
+    border-color: rgba(99, 115, 255, 0.4);
+}
+
 .email-list {
     list-style: none;
     display: flex;
@@ -1392,10 +1473,12 @@ body {
 }
 
 .email-subject {
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: block;
 }
 
 .email-meta {

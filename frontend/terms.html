@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conditions d'Utilisation — MailScrub.app</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .legal-container {
+            max-width: 800px;
+            margin: 100px auto 60px;
+            padding: 40px;
+            background: var(--bg-card);
+            border: var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(var(--glass-blur));
+        }
+
+        .legal-title {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .legal-content h2 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: var(--accent-blue);
+            font-size: 1.4rem;
+        }
+
+        .legal-content p,
+        .legal-content li {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 1.05rem;
+        }
+
+        .highlight-box {
+            background: rgba(255, 170, 64, 0.1);
+            border-left: 4px solid var(--accent-orange);
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar (simplified) -->
+    <nav class="navbar landing-nav" style="background: var(--bg-primary);">
+        <div class="logo">
+            <span class="logo-icon">📧</span>
+            <span class="logo-text">MailScrub</span>
+            <span class="logo-badge">.app</span>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Retour à l'accueil</a>
+        </div>
+    </nav>
+
+    <div class="legal-container">
+        <h1 class="legal-title">Conditions Générales d'Utilisation (CGU)</h1>
+        <div class="legal-content">
+            <p><strong>Dernière mise à jour : 22 Février 2026</strong></p>
+
+            <div class="highlight-box">
+                L'utilisation de MailScrub.app implique l'acceptation pleine et entière des conditions générales
+                d'utilisation décrites ci-après.
+            </div>
+
+            <h2>1. Description du Service</h2>
+            <p>MailScrub est un outil en ligne gratuit permettant aux utilisateurs de Gmail d'analyser le volume, la
+                taille et la provenance de leurs emails afin de faciliter le nettoyage de leur boîte de réception par
+                des actions de suppression en masse ou de désabonnement direct.</p>
+
+            <h2>2. Accès au Service et Google OAuth</h2>
+            <p>L'accès complet au service nécessite une authentification via un compte Google (OAuth 2.0). En vous
+                connectant, vous autorisez MailScrub à accéder à votre compte Gmail en lecture et écriture locale
+                (Metadata via l'API Gmail), dans les limites strictes définies dans notre Politique de Confidentialité.
+            </p>
+
+            <h2>3. Responsabilité de l'Utilisateur</h2>
+            <p>L'utilisateur est seul responsable des actions (suppression d'emails, désabonnement) qu'il effectue via
+                l'interface de MailScrub. MailScrub exécute techniquement les commandes demandées par l'utilisateur mais
+                ne saurait être tenu responsable des conséquences d'une suppression involontaire de courriers
+                électroniques importants (factures, billets, documents légaux).</p>
+            <p><strong>Il est fortement recommandé de vérifier l'expéditeur et le contenu visé avant d'enclencher une
+                    action de suppression depuis le Dashboard.</strong></p>
+
+            <h2>4. Limites de Responsabilité de MailScrub</h2>
+            <p>MailScrub.app est fourni "en l'état" et de manière gratuite. L'éditeur ne peut garantir la disponibilité
+                continue du service (notamment en cas de quotas de l'API Google dépassés) ni être tenu responsable des
+                dommages directs ou indirects liés à l'utilisation, l'interruption ou l'impossibilité d'accès au
+                service.</p>
+
+            <h2>5. Service Gratuit</h2>
+            <p>La version actuelle 1.0 de MailScrub est proposée à un usage personnel et gratuit. MailScrub se réserve
+                le droit de modifier ce modèle de tarification pour des usages intensifs (B2B) ou de limiter les
+                requêtes sans préavis si l'intégrité du service est menacée (abus).</p>
+
+            <h2>6. Code Source</h2>
+            <p>Ce projet peut s'appuyer en partie sur des ressources open source. Toute tentative de rétro-ingénierie
+                malveillante ou d'utilisation des API internes de MailScrub en dehors de l'interface fournie sur
+                MailScrub.app est strictement interdite.</p>
+
+            <h2>7. Contact</h2>
+            <p>Pour toute réclamation, suggestion ou signalement, contactez-nous via : <em>contact@mailscrub.app</em>.
+            </p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <div class="footer-content">
+            <p class="copyright">© 2026 MailScrub.app</p>
+        </div>
+    </footer>
+</body>
+
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politique de Confidentialité — MailScrub.app</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .legal-container {
+            max-width: 800px;
+            margin: 100px auto 60px;
+            padding: 40px;
+            background: var(--bg-card);
+            border: var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(var(--glass-blur));
+        }
+
+        .legal-title {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .legal-content h2 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: var(--accent-blue);
+            font-size: 1.4rem;
+        }
+
+        .legal-content p,
+        .legal-content li {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 1.05rem;
+        }
+
+        .legal-content ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+
+        .highlight-box {
+            background: rgba(0, 224, 150, 0.1);
+            border-left: 4px solid var(--accent-green);
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar (simplified) -->
+    <nav class="navbar landing-nav" style="background: var(--bg-primary);">
+        <div class="logo">
+            <span class="logo-icon">📧</span>
+            <span class="logo-text">MailScrub</span>
+            <span class="logo-badge">.app</span>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Retour à l'accueil</a>
+        </div>
+    </nav>
+
+    <div class="legal-container">
+        <h1 class="legal-title">Politique de Confidentialité</h1>
+        <div class="legal-content">
+            <p><strong>Dernière mise à jour : 22 Février 2026</strong></p>
+
+            <div class="highlight-box">
+                <strong>En résumé (TL;DR) :</strong> Nous ne lisons jamais le contenu de vos messages. Nous ne stockons
+                aucune base de données contenant vos emails. MailScrub est un outil d'analyse en mémoire vive. Dès que
+                vous fermez la page, tout est effacé.
+            </div>
+
+            <h2>1. Utilisation de l'API Google (Gmail)</h2>
+            <p>MailScrub utilise l'API Gmail pour analyser et nettoyer votre boîte de réception. Notre utilisation des
+                informations reçues obéit strictement aux règles de l'API Google :</p>
+            <ul>
+                <li><strong>Ce que nous lisons :</strong> Seulement les métadonnées de vos emails (Expéditeur, Sujet,
+                    Taille, et s'ils ont un lien de désabonnement).</li>
+                <li><strong>Ce que nous NE lisons PAS :</strong> Le corps ou le contenu personnel de vos messages.</li>
+                <li><strong>Stockage :</strong> Les données récupérées sont traitées "à la volée" (Stateless) sur la
+                    mémoire de nos serveurs sécurisés Google Cloud Run le temps de l'analyse, et <strong>détruites
+                        immédiatement</strong> une fois le rapport affiché sur votre écran.</li>
+            </ul>
+
+            <h2>2. Conservation des Données</h2>
+            <p>L'architecture de MailScrub est conçue pour garantir votre anonymat :</p>
+            <ul>
+                <li>Aucune base de données relationnelle ne stocke votre profil Gmail ou votre historique d'emails.</li>
+                <li>Votre nom, photo de profil et adresse email sont utilisés uniquement pour un affichage en interface
+                    le temps de votre session.</li>
+            </ul>
+
+            <h2>3. Partage des Données</h2>
+            <p><strong>Nous ne vendons, ne louons, et ne partageons aucune de vos données personnelles ou le contenu de
+                    vos emails avec des tiers.</strong> MailScrub n'a aucun modèle économique basé sur la publicité ou
+                la revente de données ciblées.</p>
+
+            <h2>4. Cookies & Traqueurs</h2>
+            <p>MailScrub utilise un "Cookie de Session" crypté uniquement nécessaire au maintien de votre
+                authentification de manière sécurisée pendant l'utilisation du site, ainsi que potentiellement le
+                "LocalStorage" (fichiers locaux sur votre appareil) pour sauvegarder vos préférences (Mode Sombre,
+                Limites de scan).</p>
+
+            <h2>5. Révoquer l'accès</h2>
+            <p>Vous avez le contrôle total. Vous pouvez à tout moment retirer l'autorisation accordée à MailScrub en
+                vous rendant dans l'espace de sécurité de votre <a href="https://myaccount.google.com/permissions"
+                    target="_blank" rel="noopener noreferrer">Compte Google (Applications tierces ayant accès à votre
+                    compte)</a>.</p>
+
+            <h2>6. Contact</h2>
+            <p>Si vous avez des questions ou des inquiétudes concernant cette politique, vous pouvez nous contacter via
+                le dépôt public GitHub du projet ou l'adresse de support : <em>contact@mailscrub.app</em>.</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <div class="footer-content">
+            <p class="copyright">© 2026 MailScrub.app</p>
+        </div>
+    </footer>
+</body>
+
+</html>

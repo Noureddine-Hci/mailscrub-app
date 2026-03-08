@@ -41,6 +41,10 @@
             <div class="nav-links">
                 <a href="#features" class="nav-link">Fonctionnalités</a>
                 <a href="#faq" class="nav-link">FAQ</a>
+                <button id="theme-toggle-landing" class="btn-icon theme-btn" aria-label="Changer le thème"
+                    title="Mode Sombre/Clair" onclick="toggleTheme()">
+                    <span class="theme-icon">🌙</span>
+                </button>
                 <button class="btn-ghost" id="btn-landing-login" onclick="startLogin()">Se connecter</button>
                 <span class="user-badge hidden" id="landing-user-badge"
                     style="display: none; align-items: center; gap: 8px;">
@@ -152,7 +156,9 @@
                 <div class="footer-links">
                     <a href="https://github.com/Noureddine-Hci/mailscrub-app" target="_blank">Code Source (GitHub)</a>
                     <span>·</span>
-                    <a href="#">Conditions & Confidentialité</a>
+                    <a href="/terms.html">Conditions d'Utilisation</a>
+                    <span>·</span>
+                    <a href="/privacy.html">Confidentialité</a>
                 </div>
                 <p class="copyright">© 2026 MailScrub. Fait avec ❤️ pour un web plus propre.</p>
             </div>
@@ -195,6 +201,10 @@
                 <span class="logo-badge">.app</span>
             </div>
             <div class="nav-links">
+                <button id="theme-toggle-dashboard" class="btn-icon theme-btn" aria-label="Changer le thème"
+                    title="Mode Sombre/Clair" onclick="toggleTheme()">
+                    <span class="theme-icon">🌙</span>
+                </button>
                 <span class="user-badge" id="user-badge" style="display: flex; align-items: center; gap: 8px;">
                     <img id="user-avatar" src="" alt="Avatar" class="hidden"
                         style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
@@ -358,7 +368,18 @@
                     </div>
                 </div>
 
-                <h4 class="modal-section-title">Derniers messages reçus</h4>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+                    <h4 class="modal-section-title" style="margin-bottom: 0;">Derniers messages reçus</h4>
+                    <div class="smart-select-container" id="smart-select-container">
+                        <button class="btn-smart" onclick="smartSelect('old')"
+                            title="Sélectionner les emails de plus de 6 mois">⏳ > 6 mois</button>
+                        <button class="btn-smart" onclick="smartSelect('newsletter')"
+                            title="Sélectionner les newsletters (par objet)">📧 Newsletter</button>
+                        <button class="btn-smart" onclick="smartSelect('promo')"
+                            title="Sélectionner les promos (par objet)">💸 Promo</button>
+                    </div>
+                </div>
+
                 <ul class="email-list" id="modal-email-list">
                     <!-- Emails injected here -->
                 </ul>

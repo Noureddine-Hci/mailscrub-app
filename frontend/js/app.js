@@ -19,6 +19,44 @@ const $loading = document.getElementById("loading");
 const $dashboard = document.getElementById("dashboard");
 const $loaderStatus = document.getElementById("loader-status");
 
+// ── Theme Management ──────────────────────────────────────
+function initTheme() {
+    const savedTheme = localStorage.getItem('mailscrub_theme') || 'dark';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        updateThemeIcons('☀️');
+    } else {
+        document.body.classList.remove('light-theme');
+        updateThemeIcons('🌙');
+    }
+}
+
+function updateThemeIcons(icon) {
+    const landingIcon = document.querySelector('#theme-toggle-landing .theme-icon');
+    const dashboardIcon = document.querySelector('#theme-toggle-dashboard .theme-icon');
+    if (landingIcon) landingIcon.textContent = icon;
+    if (dashboardIcon) dashboardIcon.textContent = icon;
+}
+
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-theme');
+    const newTheme = isLight ? 'light' : 'dark';
+    localStorage.setItem('mailscrub_theme', newTheme);
+    updateThemeIcons(isLight ? '☀️' : '🌙');
+
+    // Update Chart.js global text colors if needed
+    if (Chart) {
+        Chart.defaults.color = isLight ? '#475569' : '#8b8fa8';
+        // Trigger a re-render by calling renderDashboard if data exists
+        if (_analysisData && !$dashboard.classList.contains('hidden')) {
+            renderDashboard(_analysisData);
+        }
+    }
+}
+
+// Initialize theme immediately to prevent flashing
+initTheme();
+
 // ── API Base URL ──────────────────────────────────────────
 const API_BASE = window.location.origin;
 
@@ -33,6 +71,45 @@ let _currentPage = 1;
 let _itemsPerPage = 50;
 let _filteredSenders = [];
 
+
+// ═══════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Already did initTheme() globally at the top
+    checkAuthOnLoad();
+
+    // Check if we have an error message in URL
+    const params = new URLSearchParams(window.location.search);
+    const errorMsg = params.get('error');
+    if (errorMsg) {
+        alert("Erreur: " + decodeURIComponent(errorMsg));
+        // Remove error from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // GDPR Banner Initialization
+    initGDPRBanner();
+});
+
+function initGDPRBanner() {
+    const banner = document.getElementById('gdpr-banner');
+    const btnAccept = document.getElementById('btn-accept-gdpr');
+
+    if (!banner || !btnAccept) return;
+
+    // Check if already accepted
+    if (!localStorage.getItem('mailscrub_gdpr_accepted')) {
+        banner.classList.remove('hidden');
+    }
+
+    // Handle acceptance
+    btnAccept.addEventListener('click', () => {
+        localStorage.setItem('mailscrub_gdpr_accepted', 'true');
+        banner.classList.add('hidden');
+    });
+}
 
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
@@ -1214,6 +1291,59 @@ function updateSelectionBtn() {
             $btn.classList.add('hidden');
             $btn.style.setProperty('display', 'none', 'important'); // FOREVER HIDDEN
         }
+    }
+}
+
+/**
+ * Smart Select Logic
+ * Selects checkboxes in the modal based on specific criteria
+ */
+function smartSelect(criteria) {
+    if (!_currentSender || !_currentSender.messages) return;
+
+    const $list = document.getElementById('modal-email-list');
+    if (!$list) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const sixMonthsAgo = now - (180 * 24 * 60 * 60);
+
+    const keywords = {
+        'newsletter': ['newsletter', 'digest', 'hebdo', 'weekly', 'daily', 'actualité', 'récap', 'mag'],
+        'promo': ['promo', 'offre', 'réduction', 'cadeau', 'soldes', 'deal', 'exclusif', 'vip', '-']
+    };
+
+    let selectedCount = 0;
+
+    _currentSender.messages.slice(0, 50).forEach(msg => {
+        let shouldSelect = false;
+        const subjectLower = (msg.subject || "").toLowerCase();
+
+        if (criteria === 'old') {
+            shouldSelect = msg.date < sixMonthsAgo;
+        } else if (criteria === 'newsletter') {
+            shouldSelect = keywords['newsletter'].some(kw => subjectLower.includes(kw));
+        } else if (criteria === 'promo') {
+            shouldSelect = keywords['promo'].some(kw => subjectLower.includes(kw));
+        }
+
+        if (shouldSelect) {
+            // Find the list item for this message and check it
+            const li = $list.querySelector(`li[data-msg-id="${msg.id}"]`);
+            if (li) {
+                const cb = li.querySelector('.email-item-checkbox');
+                if (cb && !cb.checked) {
+                    cb.checked = true;
+                    selectedCount++;
+                }
+            }
+        }
+    });
+
+    updateSelectionBtn();
+
+    // Optional visual feedback if nothing was found
+    if (selectedCount === 0) {
+        alert(`Aucun email ne correspond au filtre "${criteria}" dans cette liste.`);
     }
 }
 

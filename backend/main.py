@@ -63,3 +63,13 @@ app.mount("/js", StaticFiles(directory=FRONTEND_DIR / "js"), name="js")
 async def serve_frontend():
     """Sert la page principale du dashboard."""
     return FileResponse(FRONTEND_DIR / "index.html")
+
+@app.get("/privacy.html")
+async def serve_privacy():
+    """Sert la page de politique de confidentialité."""
+    return FileResponse(FRONTEND_DIR / "privacy.html")
+
+@app.get("/terms.html")
+async def serve_terms():
+    """Sert la page des conditions d'utilisation."""
+    return FileResponse(FRONTEND_DIR / "terms.html")
