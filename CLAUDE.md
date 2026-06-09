@@ -47,8 +47,13 @@
 - Setup local : voir `.agent/workflows/setup.md`
 
 ## État & roadmap
-- Audit complet réalisé (juin 2026). Plan d'exécution détaillé :
-  `~/.claude/plans/ok-tu-peut-me-binary-deer.md`.
-- Sprints : **0 Sécurité ✅** (branche `fix/security-sprint-0`) → **1 Fiabilité/perf** →
-  **2 UX/a11y** → **Phase 2** (sécurité avancée / rapports / multi-provider) →
-  **Phase 3** (monétisation Stripe).
+- 👉 **REPRISE DE SESSION : lire `SESSION-HANDOFF.md` en premier** (état détaillé, branches,
+  ce qui est validé en réel, points ouverts). Plan complet : `~/.claude/plans/ok-tu-peut-me-binary-deer.md`.
+- Avancement (au 2026-06-10) :
+  - **Sprint 0 Sécurité ✅** (`fix/security-sprint-0`, commit `ee7db7b`) — validé en réel.
+  - **Sprint 1 Fiabilité ✅** (`fix/reliability-sprint-1`, commit `f073535`) — validé en réel + 13 tests pytest.
+  - **Sprint 2 UX/a11y 🚧** (`feat/ux-sprint-2`, commit `9bb2100`) — navbar responsive + reduced-motion faits ;
+    restent toasts, modales accessibles, breakpoint tablette.
+  - **Phase 2** (sécurité avancée / rapports / multi-provider) puis **Phase 3** (Stripe) — à venir.
+- ⚠️ Branche courante `feat/ux-sprint-2` ; aucune branche fusionnée dans `main`.
+- ⚠️ Point ouvert immédiat : restaurer 4 mails de test Pathé (voir handoff).
