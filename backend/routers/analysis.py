@@ -130,6 +130,9 @@ async def analyze_mailbox(request: Request, limit: int = 1000):
     Lance l'analyse de la boîte mail.
     Retourne un stream NDJSON avec la progression puis le résultat.
     """
+    # Borne le volume demandé (évite des scans abusifs / coûteux via ?limit=...).
+    limit = max(1, min(limit, 5000))
+
     creds_data = request.session.get("credentials")
     
     # Prépare le générateur (sync) approprié
@@ -201,20 +204,26 @@ async def delete_emails(request: Request):
         deleted = 0
         errors = 0
 
-        for msg_id in message_ids:
+        # Traitement par lots (jusqu'à 1000 IDs/appel) au lieu d'un appel par mail :
+        #   - mode "delete" → batchDelete (suppression définitive)
+        #   - mode "trash"  → batchModify + label TRASH (mise à la corbeille)
+        # 500 mails passent ainsi de 500 appels à 1 seul.
+        BATCH_SIZE = 1000
+        for i in range(0, len(message_ids), BATCH_SIZE):
+            chunk = message_ids[i:i + BATCH_SIZE]
             try:
                 if mode == "delete":
-                    service.users().messages().delete(
-                        userId="me", id=msg_id
+                    service.users().messages().batchDelete(
+                        userId="me", body={"ids": chunk}
                     ).execute()
                 else:
-                    service.users().messages().trash(
-                        userId="me", id=msg_id
+                    service.users().messages().batchModify(
+                        userId="me", body={"ids": chunk, "addLabelIds": ["TRASH"]}
                     ).execute()
-                deleted += 1
+                deleted += len(chunk)
             except Exception as e:
-                print(f"[WARN] Failed to {mode} message {msg_id}: {e}")
-                errors += 1
+                print(f"[WARN] Batch {mode} échoué (offset {i}): {e}")
+                errors += len(chunk)
 
         return {
             "deleted": deleted,

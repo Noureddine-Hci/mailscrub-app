@@ -45,7 +45,7 @@ function toggleTheme() {
     updateThemeIcons(isLight ? '☀️' : '🌙');
 
     // Update Chart.js global text colors if needed
-    if (Chart) {
+    if (typeof Chart !== 'undefined') {
         Chart.defaults.color = isLight ? '#475569' : '#8b8fa8';
         // Trigger a re-render by calling renderDashboard if data exists
         if (_analysisData && !$dashboard.classList.contains('hidden')) {
@@ -89,27 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // GDPR Banner Initialization
-    initGDPRBanner();
 });
-
-function initGDPRBanner() {
-    const banner = document.getElementById('gdpr-banner');
-    const btnAccept = document.getElementById('btn-accept-gdpr');
-
-    if (!banner || !btnAccept) return;
-
-    // Check if already accepted
-    if (!localStorage.getItem('mailscrub_gdpr_accepted')) {
-        banner.classList.remove('hidden');
-    }
-
-    // Handle acceptance
-    btnAccept.addEventListener('click', () => {
-        localStorage.setItem('mailscrub_gdpr_accepted', 'true');
-        banner.classList.add('hidden');
-    });
-}
 
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
@@ -441,9 +421,6 @@ function renderDashboard(data, isReal = false) {
     animateCounter("stat-newsletters", data.stats.newsletter_sources, 1000);
     animateCounter("stat-unread", data.stats.estimated_unread, 1400);
     animateCounter("stat-senders", data.stats.unique_senders, 1200);
-
-    // Space summary (only for real data)
-    renderSpaceSummary(data);
 }
 
 
@@ -1163,13 +1140,6 @@ function renderSpaceSummary(data) {
         $freed.dataset.bytes = "0";
     }
 }
-
-
-// ═══════════════════════════════════════════════════════════
-// INIT — Check for auth on page load
-// ═══════════════════════════════════════════════════════════
-
-document.addEventListener("DOMContentLoaded", checkAuthOnLoad);
 
 
 // ═══════════════════════════════════════════════════════════

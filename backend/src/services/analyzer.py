@@ -26,6 +26,35 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from email.utils import parseaddr
 
+from googleapiclient.errors import HttpError
+
+
+# ── Gmail API helper (retry) ──────────────────────────────────
+
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _execute_with_retry(api_request, max_attempts: int = 4):
+    """
+    Exécute une requête Gmail (single request) avec retry exponentiel
+    sur les erreurs transitoires (429 rate-limit, 5xx).
+    """
+    delay = 1.0
+    for attempt in range(max_attempts):
+        try:
+            return api_request.execute()
+        except HttpError as e:
+            status = getattr(getattr(e, "resp", None), "status", None)
+            try:
+                status = int(status)
+            except (TypeError, ValueError):
+                status = None
+            if status in _RETRYABLE_STATUS and attempt < max_attempts - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise
+
 
 # ── Result ────────────────────────────────────────────────────
 
@@ -68,9 +97,13 @@ NOTIFICATION_PATTERNS = [
     "notify@", "alerts@",
 ]
 
+# Signaux spam volontairement « forts » (le seuil exige au moins 2 correspondances).
+# On évite les mots trop génériques ("free" → free.fr, "win" → winter, "deal" → dealer)
+# qui généraient beaucoup de faux positifs.
 SPAM_PATTERNS = [
-    "win", "prize", "lottery", "free", "offer", "deal", "discount",
-    "urgent", "act now", "limited time", "congratulations", "winner",
+    "prize", "lottery", "winner", "congratulations", "you won",
+    "act now", "limited time", "risk-free", "100% free",
+    "viagra", "casino", "claim your",
     ".xyz", ".top", ".club", ".buzz",
 ]
 
@@ -158,19 +191,23 @@ class MailAnalyzer:
         # Step 1: List messages
         messages = []
         next_page_token = None
-        
+        list_error = None
+
         # Max fetch limit (fetch d'IDs est rapide, on peut en prendre un peu plus pour filtrer)
         fetch_limit = limit
 
         while len(messages) < fetch_limit:
             try:
-                results = service.users().messages().list(
-                    userId="me",
-                    maxResults=100,
-                    pageToken=next_page_token,
-                ).execute()
+                results = _execute_with_retry(
+                    service.users().messages().list(
+                        userId="me",
+                        maxResults=100,
+                        pageToken=next_page_token,
+                    )
+                )
             except Exception as e:
                 print(f"[WARN] Error fetching message list: {e}")
+                list_error = e
                 break
 
             batch = results.get("messages", [])
@@ -179,7 +216,7 @@ class MailAnalyzer:
 
             messages.extend(batch)
             next_page_token = results.get("nextPageToken")
-            
+
             # Progress update during fetch (2-10%)
             fetched = len(messages)
             pct = 2 + int((fetched / fetch_limit) * 8)
@@ -187,6 +224,15 @@ class MailAnalyzer:
 
             if not next_page_token:
                 break
+
+        # Si l'API a échoué AVANT de récupérer le moindre message, c'est une erreur,
+        # pas une boîte vide : on le signale clairement au lieu d'afficher "vide".
+        if list_error and not messages:
+            yield {
+                "type": "error",
+                "message": "Impossible de récupérer vos emails (API Gmail). Réessayez dans un instant.",
+            }
+            return
 
         total_emails = len(messages)
         yield {"type": "progress", "percent": 10, "message": f"{total_emails} emails identifiés. Analyse du contenu..."}
@@ -312,16 +358,13 @@ class MailAnalyzer:
             proccessed_count += 1
 
         # Execute batches
-        print(f"[DEBUG] Starting batch processing for {effective_limit} emails with batch size {BATCH_SIZE}")
         for i in range(0, effective_limit, BATCH_SIZE):
             batch = service.new_batch_http_request(callback=batch_callback)
-            
+
             # Add up to BATCH_SIZE requests
             chunk_end = min(i + BATCH_SIZE, effective_limit)
             chunk = messages[i:chunk_end]
-            
-            print(f"[DEBUG] Preparing batch {i}-{chunk_end}")
-            
+
             for msg_meta in chunk:
                 batch.add(service.users().messages().get(
                     userId="me",
@@ -329,11 +372,9 @@ class MailAnalyzer:
                     format="metadata",
                     metadataHeaders=["From", "Subject", "List-Unsubscribe"],
                 ))
-            
+
             try:
-                print(f"[DEBUG] Executing batch {i}...")
                 batch.execute()
-                print(f"[DEBUG] Batch {i} executed. Processed count so far: {proccessed_count}")
             except Exception as e:
                 print(f"[ERROR] Batch execute failed at index {i}: {e}")
                 traceback.print_exc()
@@ -351,6 +392,13 @@ class MailAnalyzer:
             senders_list = []
             for email_addr, count in sender_counter.most_common():
                 cat = sender_categories.get(email_addr, "human")
+
+                # Signal fort : un expéditeur avec en-tête List-Unsubscribe est
+                # quasi toujours un envoi en masse (newsletter/marketing). On le
+                # reclasse, sauf s'il a déjà été identifié comme spam.
+                if sender_unsubscribe.get(email_addr) and cat in ("human", "notification"):
+                    cat = "newsletter"
+
                 category_counts[cat] = category_counts.get(cat, 0) + count
 
                 # Sort messages by date desc
@@ -387,9 +435,22 @@ class MailAnalyzer:
             total_size_bytes = sum(s.get("size_bytes", 0) for s in senders_list)
             unique_senders = len(sender_counter)
 
+            # Vrai nombre de non-lus (estimation fournie par Gmail) plutôt qu'un
+            # pourcentage inventé. Requête légère (maxResults=1 → resultSizeEstimate).
+            try:
+                unread_resp = _execute_with_retry(
+                    service.users().messages().list(
+                        userId="me", q="is:unread", maxResults=1
+                    )
+                )
+                estimated_unread = int(unread_resp.get("resultSizeEstimate", 0))
+            except Exception as e:
+                print(f"[WARN] Impossible de récupérer le nombre de non-lus: {e}")
+                estimated_unread = 0
+
             stats = {
                 "newsletter_sources": newsletter_sources,
-                "estimated_unread": int(total_emails * 0.4),  # Placeholder
+                "estimated_unread": estimated_unread,
                 "unique_senders": unique_senders,
                 "total_size_bytes": total_size_bytes,
             }
