@@ -100,6 +100,14 @@ async def callback(request: Request, code: str = "", state: str = ""):
     Callback OAuth — reçoit le code de Google, échange contre un token,
     et stocke les credentials dans la session.
     """
+    # Protection CSRF : le state renvoyé par Google doit correspondre à celui
+    # généré dans /auth/login et stocké en session. Sans cette vérification,
+    # un attaquant peut injecter son propre code d'autorisation.
+    expected_state = request.session.pop("oauth_state", None)
+    if not state or not expected_state or state != expected_state:
+        print("[WARN] OAuth state invalide ou manquant (CSRF potentiel).")
+        return RedirectResponse("/?error=invalid_state")
+
     redirect_uri = _get_redirect_uri(request)
 
     flow = _get_flow(redirect_uri)
@@ -120,13 +128,15 @@ async def callback(request: Request, code: str = "", state: str = ""):
     if "https://www.googleapis.com/auth/gmail.modify" not in credentials.scopes:
         return RedirectResponse("/?error=missing_scope")
 
-    # Store credentials in session (serialized)
+    # Store credentials in session (serialized).
+    # SÉCURITÉ : le cookie de session est signé mais PAS chiffré (base64 lisible
+    # côté client). On n'y stocke donc jamais le client_secret de l'application ;
+    # il est ré-injecté depuis l'environnement serveur au moment de construire
+    # le service Gmail (voir routers/analysis.py).
     request.session["credentials"] = {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,
         "token_uri": credentials.token_uri,
-        "client_id": credentials.client_id,
-        "client_secret": credentials.client_secret,
         "scopes": list(credentials.scopes),
     }
 

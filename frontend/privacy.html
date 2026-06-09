@@ -92,6 +92,9 @@
                 <li><strong>Ce que nous lisons :</strong> Seulement les métadonnées de vos emails (Expéditeur, Sujet,
                     Taille, et s'ils ont un lien de désabonnement).</li>
                 <li><strong>Ce que nous NE lisons PAS :</strong> Le corps ou le contenu personnel de vos messages.</li>
+                <li><strong>Ce que nous pouvons faire (à votre demande) :</strong> Mettre des emails à la corbeille et
+                    envoyer des demandes de désabonnement en votre nom. Ces actions ne sont déclenchées que lorsque vous
+                    cliquez explicitement sur les boutons correspondants (autorisation <code>gmail.modify</code>).</li>
                 <li><strong>Stockage :</strong> Les données récupérées sont traitées "à la volée" (Stateless) sur la
                     mémoire de nos serveurs sécurisés Google Cloud Run le temps de l'analyse, et <strong>détruites
                         immédiatement</strong> une fois le rapport affiché sur votre écran.</li>
@@ -111,10 +114,10 @@
                 la revente de données ciblées.</p>
 
             <h2>4. Cookies & Traqueurs</h2>
-            <p>MailScrub utilise un "Cookie de Session" crypté uniquement nécessaire au maintien de votre
-                authentification de manière sécurisée pendant l'utilisation du site, ainsi que potentiellement le
-                "LocalStorage" (fichiers locaux sur votre appareil) pour sauvegarder vos préférences (Mode Sombre,
-                Limites de scan).</p>
+            <p>MailScrub utilise un "Cookie de Session" signé de manière sécurisée, uniquement nécessaire au maintien de
+                votre authentification pendant l'utilisation du site (il ne contient aucun secret applicatif), ainsi que
+                potentiellement le "LocalStorage" (fichiers locaux sur votre appareil) pour sauvegarder vos préférences
+                (Mode Sombre, Limites de scan).</p>
 
             <h2>5. Révoquer l'accès</h2>
             <p>Vous avez le contrôle total. Vous pouvez à tout moment retirer l'autorisation accordée à MailScrub en

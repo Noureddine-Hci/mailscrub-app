@@ -8,7 +8,7 @@ MailScrub est une application **stateless**. Elle n'a pas de base de données pe
 
 - **Frontend** : SPA (Single Page App) en Vanilla JS.
 - **Backend** : FastAPI (Python) qui agit comme un proxy intelligent vers l'API Gmail.
-- **Session** : Les tokens OAuth sont stockés dans un cookie chiffré (`SessionMiddleware`).
+- **Session** : Les tokens OAuth sont stockés dans un cookie **signé (non chiffré)** via `SessionMiddleware`. Aucun secret applicatif (`client_secret`) n'y figure — il est ré-injecté côté serveur depuis l'environnement au moment de bâtir le service Gmail.
 
 ---
 

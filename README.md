@@ -141,8 +141,12 @@ https://mailscrub.app/auth/callback
 ### Scopes OAuth utilisés
 
 ```text
-https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.modify
 ```
+
+> ⚠️ `gmail.modify` est nécessaire pour les actions de nettoyage (mise à la corbeille)
+> et l'envoi de mails de désabonnement. L'app ne lit que les **métadonnées**
+> (`From`, `Subject`, `List-Unsubscribe`) — jamais le corps des messages.
 
 ### Consentement OAuth
 
@@ -252,9 +256,9 @@ Si pas d'authentification OAuth, `analyze_demo()` retourne des données fictives
 
 - **Aucun mail stocké** : Tout est traité en temps réel, rien n'est sauvegardé sur nos serveurs
 - **OAuth 2.0** : Authentification standard Google, tokens temporaires
-- **Session signée** : Les credentials sont dans un cookie signé (pas en base de données)
-- **HTTPS only** : Forcé sur Cloud Run
-- **Scope minimal** : `gmail.readonly` — on ne peut que LIRE, pas modifier/supprimer
+- **Session signée** : Les credentials de session sont dans un cookie **signé (non chiffré)** ; aucun secret applicatif (`client_secret`) n'y figure, et rien n'est mis en base de données
+- **HTTPS only** : Forcé sur Cloud Run (cookie `Secure` + `SameSite=Lax`)
+- **Scope** : `gmail.modify` — lecture des **métadonnées** + actions de nettoyage (corbeille, désabonnement) déclenchées uniquement par l'utilisateur. Le corps des messages n'est jamais lu.
 - **`.env` non commité** : Les secrets ne sont jamais dans Git
 
 ---

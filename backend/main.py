@@ -5,21 +5,34 @@ Point d'entrée de l'API backend.
 Sert aussi les fichiers statiques du frontend.
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
-
-import os
 
 # Load .env from the backend/ directory
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from backend.routers import auth, analysis
+
+# ── Environment ───────────────────────────────────────────────
+
+IS_PROD = bool(os.getenv("K_SERVICE"))  # Cloud Run injecte K_SERVICE
+
+# SECRET_KEY signe les cookies de session. En production, son absence est
+# fatale : un fallback connu permettrait à quiconque de forger des sessions.
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if IS_PROD:
+        raise RuntimeError(
+            "SECRET_KEY manquant en production. Définissez la variable "
+            "d'environnement avant de démarrer le service."
+        )
+    SECRET_KEY = "dev-secret-key"  # local uniquement
 
 # ── App ───────────────────────────────────────────────────────
 
@@ -30,21 +43,22 @@ app = FastAPI(
 )
 
 # ── Session Middleware (needed for OAuth) ─────────────────────
+# Le cookie de session est SIGNÉ mais pas chiffré : on n'y stocke donc aucun
+# secret applicatif (voir routers/auth.py). `https_only` ajoute le flag Secure
+# en prod ; `same_site="lax"` protège du CSRF tout en laissant passer le retour
+# de navigation OAuth (un "strict" casserait le callback Google).
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "dev-secret-key"),
+    secret_key=SECRET_KEY,
+    https_only=IS_PROD,
+    same_site="lax",
 )
 
 # ── CORS ──────────────────────────────────────────────────────
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Le frontend est servi par cette même application (même origine) : aucune
+# configuration CORS n'est nécessaire. On évite volontairement une politique
+# permissive (`*` + credentials) qui serait exploitable.
 
 # ── Routers ───────────────────────────────────────────────────
 

@@ -8,12 +8,15 @@ Utilise les vraies données Gmail si l'utilisateur est authentifié,
 sinon retourne les données de démonstration.
 """
 
+import os
+import socket
+import ipaddress
 import traceback
 from dataclasses import asdict
 
 import urllib.request
 import urllib.error
-import ssl
+import urllib.parse
 from email.message import EmailMessage
 import base64
 
@@ -25,6 +28,51 @@ from backend.src.services.analyzer import MailAnalyzer
 router = APIRouter(prefix="/api", tags=["analysis"])
 
 analyzer = MailAnalyzer()
+
+
+def _is_safe_public_url(url: str) -> bool:
+    """
+    Protection SSRF : n'autorise que http(s) vers une IP publique.
+    Bloque loopback / IP privées / link-local / réservées (services internes,
+    serveur de métadonnées cloud, etc.).
+
+    Note : un risque résiduel de DNS-rebinding subsiste (TOCTOU entre la
+    résolution et la requête réelle), acceptable pour cet usage de désabonnement.
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False
+
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    host = parsed.hostname
+    if not host:
+        return False
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return False
+
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return False
+
+    return True
 
 
 def _get_gmail_service(request: Request):
@@ -57,12 +105,14 @@ def _get_gmail_service(request: Request):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
+    # client_id / client_secret ne sont plus stockés en session (le cookie
+    # n'est pas chiffré) : on les ré-injecte depuis l'environnement serveur.
     credentials = Credentials(
         token=creds_data["token"],
         refresh_token=creds_data.get("refresh_token"),
         token_uri=creds_data["token_uri"],
-        client_id=creds_data["client_id"],
-        client_secret=creds_data["client_secret"],
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
         scopes=creds_data["scopes"],
     )
 
@@ -229,17 +279,19 @@ async def unsubscribe(request: Request):
 
         # CAS 2: HTTP
         elif link.startswith("http"):
+            # Protection SSRF : refuser les URLs internes/privées.
+            if not _is_safe_public_url(link):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": True, "message": "Lien de désabonnement non autorisé."},
+                )
             try:
                 # User-Agent standard pour ne pas être bloqué
                 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
                 req = urllib.request.Request(link, headers=headers)
-                
-                # Ignore SSL errors (fixes many false negatives)
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                
-                with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+
+                # TLS vérifié (on NE désactive PAS la validation des certificats).
+                with urllib.request.urlopen(req, timeout=10) as response:
                     code = response.getcode()
                     if 200 <= code < 300:
                         return {"success": True, "method": "http", "message": "Lien visité avec succès."}

@@ -832,8 +832,8 @@ function renderSenders(senders, startIndex = 0) {
         row.innerHTML = `
             <span class="sender-rank ${rank <= 3 ? 'top-3' : ''}">#${rank}</span>
             <div class="sender-info">
-                <span class="sender-email">${sender.email}</span>
-                <span class="sender-category">${categoryLabels[sender.category] || sender.category}</span>
+                <span class="sender-email">${escapeHtml(sender.email)}</span>
+                <span class="sender-category">${escapeHtml(categoryLabels[sender.category] || sender.category)}</span>
             </div>
             <div class="sender-bar-container">
                 <div class="sender-bar ${sender.category}" style="width: 0%"></div>
@@ -913,6 +913,22 @@ function renderRecommendations(recs) {
 // ═══════════════════════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════════════════════
+
+/**
+ * Échappe les caractères HTML spéciaux. Les sujets et noms d'expéditeurs sont
+ * du contenu contrôlé par un tiers (n'importe qui peut vous envoyer un mail),
+ * donc toute valeur rendue via innerHTML ou un attribut HTML DOIT passer par
+ * cette fonction pour éviter une XSS stockée.
+ */
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+    }[c]));
+}
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -1210,20 +1226,38 @@ function openSenderDetails(sender, index) {
             li.className = 'email-item';
             // Store the ID on the list item for easy retrieval
             li.dataset.msgId = msg.id;
-            li.innerHTML = `
-                <div class="email-checkbox">
-                    <input type="checkbox" class="email-item-checkbox" value="${msg.id}">
-                </div>
-                <span class="email-subject" title="${msg.subject}">${msg.subject}</span>
-                <div class="email-meta">
-                    <span>${dateStr}</span>
-                    <span>${formatSize(msg.size)}</span>
-                </div>
-            `;
+
+            // Construction via DOM (textContent) : le sujet est contrôlé par un
+            // tiers, on ne passe jamais par innerHTML (anti-XSS).
+            const cbWrap = document.createElement('div');
+            cbWrap.className = 'email-checkbox';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'email-item-checkbox';
+            cb.value = msg.id;
+            cbWrap.appendChild(cb);
+
+            const subjectSpan = document.createElement('span');
+            subjectSpan.className = 'email-subject';
+            subjectSpan.title = msg.subject || '';
+            subjectSpan.textContent = msg.subject || '';
+
+            const meta = document.createElement('div');
+            meta.className = 'email-meta';
+            const dateSpan = document.createElement('span');
+            dateSpan.textContent = dateStr;
+            const sizeSpan = document.createElement('span');
+            sizeSpan.textContent = formatSize(msg.size);
+            meta.appendChild(dateSpan);
+            meta.appendChild(sizeSpan);
+
+            li.appendChild(cbWrap);
+            li.appendChild(subjectSpan);
+            li.appendChild(meta);
             $list.appendChild(li);
 
             // Add listener to update button state
-            li.querySelector('.email-item-checkbox').addEventListener('change', updateSelectionBtn);
+            cb.addEventListener('change', updateSelectionBtn);
         });
     }
 
