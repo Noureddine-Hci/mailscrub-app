@@ -1269,7 +1269,27 @@ body {
 
 @media (max-width: 768px) {
     .navbar {
-        padding: 16px 20px;
+        padding: 14px 16px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .nav-links {
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .nav-link {
+        font-size: 0.85rem;
+    }
+
+    /* Évite que l'email/avatar pousse "Déconnexion" hors de l'écran */
+    .user-badge {
+        max-width: 45vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .features {
@@ -1585,4 +1605,23 @@ body {
 
 .text-neutral {
     color: var(--text-primary);
+}
+
+
+/* ── Accessibilité : respect de "réduire les animations" ─── */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .bg-orb {
+        animation: none !important;
+    }
 }

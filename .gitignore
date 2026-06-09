@@ -31,6 +31,9 @@ dist/
 .vscode/
 .idea/
 .vs/
+
+# Config locale du preview (chemins machine-spécifiques)
+.claude/launch.json
 *.swp
 *.swo
 *~
