@@ -45,6 +45,14 @@
 - Tests : pas de mocks pour la logique métier — fixtures réelles (headers Gmail).
 - Frontend : pas de framework, pas de build step.
 
+## Collaboration — conseiller modèle (quota Pro)
+- **Démarrer chaque tâche par une ligne 🧭** indiquant le modèle + effort conseillés. Noureddine
+  reste sur **Sonnet** par défaut (plan Pro ~22 €, quota limité — Opus le consomme bien plus vite).
+- Repères : **Sonnet/Moyen** = défaut (implémentation, tests, déploiement) · **Opus/Élevé** = archi,
+  refonte créative (« dé-IA »), bug coriace · **Haiku/Faible** = questions, petits fix.
+  Éviter Opus Max / Ultracode / Fable sur Pro.
+- Je **ne peux pas** changer le modèle moi-même — seulement conseiller ; lui switche via `/model`.
+
 ## Commandes
 - Dev : `python -m uvicorn backend.main:app --reload --port 8000` → http://localhost:8000
 - Déploiement : voir `.agent/workflows/deploy.md`
