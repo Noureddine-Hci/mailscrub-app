@@ -1,23 +1,44 @@
 ---
-description: Deploy the application to Google Cloud Run
+description: Deploy the application to Azure Container Apps
 ---
 
 This workflow standardizes the deployment process for MailScrub.
 
-### Prerequisites
-- Google Cloud SDK installed and configured (`gcloud auth login`)
-- Project set to `mailscrub-app`
+### Infrastructure (already provisioned)
+- **Resource group** : `mailscrub-rg` (eastus)
+- **Container Apps environment** : `mailscrub-env` (swedencentral)
+- **Container App** : `mailscrub` (swedencentral)
+- **Image registry** : `ghcr.io/noureddine-hci/mailscrub:latest`
+- **Live URL** : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
 
-### 1. Build and Deploy
-// turbo
+### Prerequisites
+- Azure CLI installed (`az version`)
+- Logged in : `az login --tenant 108bc864-cdf5-4ec3-8b7c-4eb06be1b41d`
+- Docker running in WSL Debian
+- GitHub PAT with `write:packages` scope (for ghcr.io push)
+
+### Deploy a new version
+
+**1. Build & push the image (WSL Debian via PowerShell)**
 ```powershell
-gcloud run deploy mailscrub-dashboard `
-  --source . `
-  --region europe-west1 `
-  --project mailscrub-app `
-  --allow-unauthenticated `
-  --port 8080
+wsl -d Debian -- docker login ghcr.io -u Noureddine-Hci --password-stdin
+# (enter PAT when prompted)
+
+wsl -d Debian -- docker build -t ghcr.io/noureddine-hci/mailscrub:latest /mnt/c/Users/Noureddine/.gemini/antigravity/scratch/MailScrub
+wsl -d Debian -- docker push ghcr.io/noureddine-hci/mailscrub:latest
 ```
 
-> [!IMPORTANT]
-> Ensure all required environment variables (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SECRET_KEY`) are set in the Cloud Run service configuration via the GCP Console or by adding `--set-env-vars` to the command above.
+**2. Redeploy the Container App (picks up the new image)**
+```powershell
+$env:PATH = [System.Environment]::GetEnvironmentVariable('PATH', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('PATH', 'User')
+az containerapp update --name mailscrub --resource-group mailscrub-rg --image ghcr.io/noureddine-hci/mailscrub:latest
+```
+
+### Secrets (stored encrypted in Azure, never in the image)
+Managed via `az containerapp secret set` — see SESSION-HANDOFF.md for details.
+
+### Google OAuth
+Authorized redirect URIs (Google Cloud Console → mailscrub-app → Credentials → MailScrub Web Client):
+- `http://localhost:8000/auth/callback` (local dev)
+- `https://mailscrub.app/auth/callback` (custom domain)
+- `https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io/auth/callback` (Azure ACA)

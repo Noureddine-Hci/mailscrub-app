@@ -1,17 +1,19 @@
 # 🤝 Passation de session — MailScrub.app
 
 > **Pour reprendre :** nouvelle session dans ce dossier → « **Reprends MailScrub, lis `SESSION-HANDOFF.md`** ».
-> Dernière mise à jour : **2026-06-10** (fin de session).
+> Dernière mise à jour : **2026-06-10** (session déploiement Azure).
 
 ---
 
 ## ⚡ TL;DR
 
 - **Tout est sur `main`** (à jour, poussé sur `origin`, **13 tests pytest verts**). Une seule branche, workflow **GitHub Flow**.
-- **Nouvelle direction décidée (2026-06-10), 2 gros chantiers** :
-  - **A — Déployer sur Azure** (et plus sur Google Cloud Run). Compte étudiant Noureddine, ~100 € de crédit (large).
-  - **B — Dé-« IA-iser » le produit** : que l'UI/le copy ne ressemblent plus à un template généré par IA.
-- **Prochaine action n°1 : Chantier A**, en commençant par le petit fix `K_SERVICE` (voir plus bas).
+- **Chantier A — Déploiement Azure ✅ FAIT** : app live sur Azure Container Apps (swedencentral).
+  - URL : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
+  - Image : `ghcr.io/noureddine-hci/mailscrub:latest`
+  - Login OAuth testé et fonctionnel.
+- **Chantier B — Dé-« IA-iser » le produit** : prochaine priorité.
+- **Prochaine action n°1 : Chantier B** (refonte UI/copy — voir plus bas).
 
 ---
 
@@ -40,32 +42,23 @@
 
 ## ▶️ LE PROGRAMME (décidé avec Noureddine)
 
-### Chantier A — Déployer sur Azure  *(priorité immédiate)*
+### Chantier A — Déploiement Azure ✅ TERMINÉ
 
-On abandonne Google Cloud Run pour **Azure**. Compte étudiant, **~100 € de crédit** (largement suffisant).
+**Infrastructure Azure (provisionnée le 2026-06-10) :**
+- Subscription : Azure for Students (`f9b4704c-e82f-46ff-83c9-1bfd024c65eb`), tenant IPSSI
+- Resource group : `mailscrub-rg` (eastus)
+- Container Apps environment : `mailscrub-env` (swedencentral — seule région autorisée par la policy étudiante)
+- Container App : `mailscrub`, scale 0-2, port 8080
+- Image : `ghcr.io/noureddine-hci/mailscrub:latest` (ACR bloqué sur souscription étudiante → ghcr.io)
+- Secrets Azure : `secret-key`, `google-client-id`, `google-client-secret` (chiffrés, référencés via secretRef)
+- ENV=production injecté → HTTPS forcé, SECRET_KEY obligatoire
 
-**Logique générale d'un déploiement SaaS** (la même partout) : image Docker → **registre** d'images →
-**service de calcul** qui fait tourner le conteneur sur une URL publique → **domaine + HTTPS** → **secrets** en
-variables d'env → **scaling/logs** gérés → (option) **CI/CD** sur `git push`.
+**Notes infra :**
+- ACR (Azure Container Registry) **non disponible** sur Azure for Students → utiliser ghcr.io
+- Log Analytics idem → Container Apps env créé avec `--logs-destination none`
+- `westeurope`/`eastus` bloqués pour ACA → `swedencentral` fonctionne
 
-**Cible recommandée : Azure Container Apps (ACA)** = l'équivalent de Cloud Run (conteneurs serverless,
-scale-to-zero = ~0 € sans trafic, HTTPS + domaine custom inclus). Registre d'images = **Azure Container Registry (ACR)**.
-Plan B plus « clic-bouton » pour débuter : **Azure App Service (Web App for Containers)**.
-(L'équivalent strict d'EC2 = Azure VM, mais à éviter ici : trop d'ops pour un conteneur.)
-
-**⚠️ Prérequis CODE avant de déployer ailleurs que Cloud Run :**
-- La détection de « production » est codée pour Cloud Run via la variable **`K_SERVICE`** (absente sur Azure).
-  Sinon : `SECRET_KEY` non exigé + redirect OAuth pas forcé en `https`. → **Généraliser la détection prod**
-  (ex. `ENV=production` explicite) dans `backend/main.py` et `_get_redirect_uri` (et partout où `K_SERVICE` est lu).
-
-**⚠️ Autres pièges :**
-- **OAuth** : ajouter la nouvelle URL Azure dans les « Authorized redirect URIs » des identifiants OAuth
-  (Google Cloud Console), sinon `redirect_uri_mismatch`.
-- **Secrets** : `SECRET_KEY`, `client_id`/`client_secret` → variables d'env Azure (idéalement Azure Key Vault), jamais dans l'image.
-- **Docs à mettre à jour** : `.agent/workflows/deploy.md` et `CLAUDE.md` parlent encore de Cloud Run/`gcloud`.
-
-**Étapes à dérouler** : fix `K_SERVICE` → créer resource group + ACR → build & push de l'image → créer l'app ACA
-avec env vars → tester le login OAuth réel → brancher domaine + HTTPS.
+**Workflow de redéploiement :** voir `.agent/workflows/deploy.md`
 
 ### Chantier B — Rendre le produit « humain » (moins « fait par IA »)
 
