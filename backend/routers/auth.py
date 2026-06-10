@@ -27,8 +27,8 @@ SCOPES = [
 ]
 
 # Allow HTTP only for local development
-if os.getenv("K_SERVICE"):
-    # Running on Cloud Run → force HTTPS
+if os.getenv("ENV") == "production":
+    # Production → force HTTPS
     os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
 else:
     # Local dev → allow HTTP
@@ -37,15 +37,14 @@ else:
 
 def _get_redirect_uri(request: Request) -> str:
     """
-    Build the OAuth callback URI, forcing HTTPS on Cloud Run.
-    Cloud Run sits behind a reverse proxy that terminates TLS,
-    so request.url_for() may return http:// even though the
-    actual public URL is https://.
+    Build the OAuth callback URI, forcing HTTPS in production.
+    Azure ACA (like Cloud Run) sits behind a reverse proxy that terminates TLS,
+    so request.url_for() may return http:// even though the public URL is https://.
     """
     url = str(request.url_for("callback"))
 
-    # On Cloud Run, force https
-    if os.getenv("K_SERVICE"):
+    # In production, force https (proxy terminates TLS)
+    if os.getenv("ENV") == "production":
         url = url.replace("http://", "https://")
     else:
         # Local dev: Force localhost to match Google Console allowlist

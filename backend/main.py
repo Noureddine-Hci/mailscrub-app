@@ -21,7 +21,7 @@ from backend.routers import auth, analysis
 
 # ── Environment ───────────────────────────────────────────────
 
-IS_PROD = bool(os.getenv("K_SERVICE"))  # Cloud Run injecte K_SERVICE
+IS_PROD = os.getenv("ENV") == "production"  # Définir ENV=production en prod (Azure ACA, etc.)
 
 # SECRET_KEY signe les cookies de session. En production, son absence est
 # fatale : un fallback connu permettrait à quiconque de forger des sessions.
