@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(window.location.search);
     const errorMsg = params.get('error');
     if (errorMsg) {
-        alert("Erreur: " + decodeURIComponent(errorMsg));
+        showToast("Erreur : " + decodeURIComponent(errorMsg), 'error');
         // Remove error from URL
         window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -343,7 +343,7 @@ async function startAnalysis(isReal = false) {
                             console.log("[App] Section switched. Dashboard visible?", !$dashboard.classList.contains("hidden"));
                         } catch (e) {
                             console.error("[App] FATAL: showSection failed", e);
-                            alert("Erreur critique: Impossible d'afficher le dashboard.");
+                            showToast("Erreur critique : impossible d'afficher le dashboard.", 'error');
                         }
 
                         try {
@@ -353,7 +353,7 @@ async function startAnalysis(isReal = false) {
                         } catch (renderErr) {
                             console.error("[App] Render Error:", renderErr);
                             console.error(renderErr.stack);
-                            alert("Erreur d'affichage du dashboard: " + renderErr.message);
+                            showToast("Erreur d'affichage du dashboard : " + renderErr.message, 'error');
                         }
                         return; // Stop the loop!
                     }
@@ -779,7 +779,22 @@ function renderSenders(senders, startIndex = 0) {
     $list.innerHTML = "";
 
     if (senders.length === 0) {
-        $list.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted);">Aucun résultat trouvé</div>`;
+        // État vide construit en DOM (textContent) : la requête est saisie par
+        // l'utilisateur, on ne passe jamais par innerHTML (anti-XSS).
+        const q = (document.getElementById('sender-search')?.value || "").trim();
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const ic = document.createElement('span');
+        ic.className = 'empty-state-icon';
+        ic.setAttribute('aria-hidden', 'true');
+        ic.textContent = '🔍';
+        const txt = document.createElement('p');
+        txt.className = 'empty-state-text';
+        txt.textContent = q
+            ? `Aucun expéditeur ne correspond à « ${q} ».`
+            : "Aucun expéditeur à afficher.";
+        empty.append(ic, txt);
+        $list.replaceChildren(empty);
         return;
     }
 
@@ -819,11 +834,11 @@ function renderSenders(senders, startIndex = 0) {
             ${sizeText ? `<span class="sender-size">${sizeText}</span>` : ''}
             ${isReal ? `
                 <div class="sender-actions">
-                    <button class="btn-action btn-trash" data-sender-index="${i}" title="Mettre à la corbeille">
+                    <button class="btn-action btn-trash" data-sender-index="${i}" title="Mettre à la corbeille" aria-label="Mettre à la corbeille les mails de ${escapeHtml(sender.email)}">
                         🗑️
                     </button>
                     ${hasUnsub ? `
-                        <button class="btn-action btn-unsub" data-sender-index="${i}" title="Se désabonner">
+                        <button class="btn-action btn-unsub" data-sender-index="${i}" title="Se désabonner" aria-label="Se désabonner de ${escapeHtml(sender.email)}">
                             🚫
                         </button>
                     ` : ''}
@@ -948,6 +963,180 @@ function animateCounter(id, target, duration) {
 
 
 // ═══════════════════════════════════════════════════════════
+// UI FEEDBACK — Toasts, Confirmation, Modales accessibles
+// Remplace alert()/confirm() (bloquants, non stylés, non a11y)
+// et centralise la gestion focus/clavier des modales.
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Affiche une notification non bloquante (toast).
+ * @param {string} message  Texte affiché (contenu tiers possible → textContent).
+ * @param {'success'|'error'|'warning'|'info'} type
+ * @param {number} duration  ms avant disparition automatique.
+ */
+function showToast(message, type = 'info', duration = 4500) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        console.log(`[Toast:${type}]`, message);
+        return;
+    }
+
+    const icons = { success: '✅', error: '⚠️', warning: '⚠️', info: 'ℹ️' };
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    // Erreur → annonce assertive ; le reste passe par aria-live=polite du conteneur.
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = icons[type] || icons.info;
+
+    const msg = document.createElement('span');
+    msg.className = 'toast-msg';
+    msg.textContent = message;
+
+    const close = document.createElement('button');
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Fermer la notification');
+    close.textContent = '×';
+
+    toast.append(icon, msg, close);
+    container.appendChild(toast);
+
+    // Reflow puis animation d'entrée.
+    requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+    let timer = setTimeout(dismiss, duration);
+
+    function dismiss() {
+        clearTimeout(timer);
+        toast.classList.remove('toast-visible');
+        // Retrait après la transition, avec garde si reduced-motion la neutralise.
+        let removed = false;
+        const remove = () => { if (!removed) { removed = true; toast.remove(); } };
+        toast.addEventListener('transitionend', remove, { once: true });
+        setTimeout(remove, 400);
+    }
+
+    close.onclick = dismiss;
+    toast.addEventListener('mouseenter', () => clearTimeout(timer));
+    toast.addEventListener('mouseleave', () => { timer = setTimeout(dismiss, 1500); });
+}
+
+
+// ── Contrôleur de modales accessibles (pile + focus-trap) ──
+const _modalStack = [];
+
+function _getFocusable(container) {
+    if (!container) return [];
+    return Array.from(container.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.offsetParent !== null);
+}
+
+/**
+ * Ouvre une modale : mémorise le déclencheur, déplace le focus dedans,
+ * et l'empile (seule la modale au sommet capte Échap/Tab).
+ * @param {HTMLElement} overlay  Élément .modal-overlay.
+ * @param {{onEscape?:Function, initialFocus?:HTMLElement}} [opts]
+ */
+function openAccessibleModal(overlay, opts = {}) {
+    if (!overlay) return;
+    const card = overlay.querySelector('.modal-card');
+    const trigger = document.activeElement;
+
+    overlay.classList.remove('hidden');
+    _modalStack.push({ overlay, card, trigger, opts });
+
+    requestAnimationFrame(() => {
+        const focusable = _getFocusable(card);
+        const target = opts.initialFocus || focusable[0] || card;
+        if (target && typeof target.focus === 'function') target.focus();
+    });
+}
+
+/**
+ * Ferme une modale : la dépile et rend le focus à son déclencheur.
+ */
+function closeAccessibleModal(overlay) {
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+    const idx = _modalStack.findIndex(e => e.overlay === overlay);
+    if (idx !== -1) {
+        const [entry] = _modalStack.splice(idx, 1);
+        if (entry.trigger && typeof entry.trigger.focus === 'function') {
+            entry.trigger.focus();
+        }
+    }
+}
+
+// Un seul écouteur global : seule la modale au sommet de la pile réagit.
+document.addEventListener('keydown', (e) => {
+    if (_modalStack.length === 0) return;
+    const top = _modalStack[_modalStack.length - 1];
+
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        if (typeof top.opts.onEscape === 'function') top.opts.onEscape();
+        else closeAccessibleModal(top.overlay);
+    } else if (e.key === 'Tab') {
+        const focusable = _getFocusable(top.card);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+});
+
+/**
+ * Dialog de confirmation accessible. Remplace window.confirm (bloquant).
+ * @returns {Promise<boolean>} true si confirmé, false sinon.
+ */
+function showConfirm({ title = 'Confirmation', message = '', confirmLabel = 'Confirmer', cancelLabel = 'Annuler', danger = true } = {}) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('modal-confirm');
+        const $title = document.getElementById('confirm-title');
+        const $msg = document.getElementById('confirm-message');
+        const $ok = document.getElementById('confirm-ok');
+        const $cancel = document.getElementById('confirm-cancel');
+
+        if (!overlay || !$ok || !$cancel) {
+            // Filet de sécurité si le DOM du dialog manque (HTML mis en cache).
+            resolve(window.confirm(message));
+            return;
+        }
+
+        $title.textContent = title;
+        $msg.textContent = message;          // contenu tiers possible → textContent
+        $ok.textContent = confirmLabel;
+        $cancel.textContent = cancelLabel;
+        $ok.className = danger ? 'btn-danger' : 'btn-primary';
+
+        const finish = (result) => {
+            $ok.onclick = null;
+            $cancel.onclick = null;
+            closeAccessibleModal(overlay);
+            resolve(result);
+        };
+
+        $ok.onclick = () => finish(true);
+        $cancel.onclick = () => finish(false);
+
+        // Focus par défaut sur "Annuler" (l'action confirmée est destructive).
+        openAccessibleModal(overlay, { onEscape: () => finish(false), initialFocus: $cancel });
+    });
+}
+
+
+// ═══════════════════════════════════════════════════════════
 // ACTION FUNCTIONS (Phase 1 — Cleanup)
 // ═══════════════════════════════════════════════════════════
 
@@ -957,15 +1146,18 @@ function animateCounter(id, target, duration) {
 async function deleteSenderEmails(sender, rowIndex) {
     const count = sender.message_ids ? sender.message_ids.length : 0;
     if (count === 0) {
-        alert("Aucun message à supprimer pour cet expéditeur.");
+        showToast("Aucun message à supprimer pour cet expéditeur.", 'info');
         return;
     }
 
-    const confirmed = confirm(
-        `🗑️ Mettre à la corbeille ${count} mail(s) de ${sender.name || sender.email} ?\n\n` +
-        `Espace récupéré : ~${formatSize(sender.size_bytes || 0)}\n` +
-        `Les mails seront dans la corbeille pendant 30 jours.`
-    );
+    const confirmed = await showConfirm({
+        title: 'Mettre à la corbeille',
+        message:
+            `Mettre à la corbeille ${count} mail(s) de ${sender.name || sender.email} ?\n\n` +
+            `Espace récupéré : ~${formatSize(sender.size_bytes || 0)}\n` +
+            `Les mails resteront dans la corbeille 30 jours.`,
+        confirmLabel: '🗑️ Mettre à la corbeille',
+    });
     if (!confirmed) return;
 
     const $row = document.getElementById(`sender-row-${rowIndex}`);
@@ -1004,12 +1196,12 @@ async function deleteSenderEmails(sender, rowIndex) {
             }
         } else {
             $btn.textContent = "❌";
-            alert(`Erreur : ${data.message || "Échec de la suppression"}`);
+            showToast(`Erreur : ${data.message || "Échec de la suppression"}`, 'error');
         }
     } catch (err) {
         console.error("Delete error:", err);
         $btn.textContent = "❌";
-        alert("Erreur de connexion au serveur.");
+        showToast("Erreur de connexion au serveur.", 'error');
     }
 }
 
@@ -1022,7 +1214,7 @@ async function deleteSenderEmails(sender, rowIndex) {
 async function unsubscribeSender(sender, rowIndex) {
     const link = sender.unsubscribe_link || "";
     if (!link) {
-        alert("Pas de lien de désabonnement trouvé.");
+        showToast("Pas de lien de désabonnement trouvé.", 'warning');
         return;
     }
 
@@ -1084,8 +1276,9 @@ async function unsubscribeSender(sender, rowIndex) {
             // Should we open the link?
             if (isFallback) {
                 window.open(target, "_blank");
+                showToast("Lien de désabonnement ouvert dans un nouvel onglet.", 'info');
             } else {
-                alert(`Le désabonnement automatique a échoué.\nLien : ${target}`);
+                showToast(`Le désabonnement automatique a échoué.\nLien : ${target}`, 'warning', 7000);
             }
         }
 
@@ -1095,7 +1288,7 @@ async function unsubscribeSender(sender, rowIndex) {
             $btn.textContent = "❌";
             $btn.disabled = false;
         }
-        alert("Erreur de connexion au serveur.");
+        showToast("Erreur de connexion au serveur.", 'error');
     }
 }
 
@@ -1164,7 +1357,17 @@ function openSenderDetails(sender, index) {
 
     const messages = sender.messages || []; // New field from backend
     if (messages.length === 0) {
-        $list.innerHTML = '<li class="email-item" style="justify-content:center; color:var(--text-muted)">Aucun d\u00E9tail disponible</li>';
+        const li = document.createElement('li');
+        li.className = 'empty-state';
+        const ic = document.createElement('span');
+        ic.className = 'empty-state-icon';
+        ic.setAttribute('aria-hidden', 'true');
+        ic.textContent = '\uD83D\uDCED';
+        const p = document.createElement('p');
+        p.className = 'empty-state-text';
+        p.textContent = "Aucun d\u00E9tail d'email disponible pour cet exp\u00E9diteur.";
+        li.append(ic, p);
+        $list.replaceChildren(li);
     } else {
         // Add a "Select All" checkbox at the top
         const liAll = document.createElement('li');
@@ -1272,8 +1475,8 @@ function openSenderDetails(sender, index) {
         }
     }
 
-    // Show Modal
-    document.getElementById('modal-overlay').classList.remove('hidden');
+    // Show Modal (focus + clavier gérés par le contrôleur accessible)
+    openAccessibleModal(document.getElementById('modal-overlay'));
 }
 
 // Helper to update the "Delete Selected" button state
@@ -1347,12 +1550,12 @@ function smartSelect(criteria) {
 
     // Optional visual feedback if nothing was found
     if (selectedCount === 0) {
-        alert(`Aucun email ne correspond au filtre "${criteria}" dans cette liste.`);
+        showToast(`Aucun email ne correspond au filtre « ${criteria} » dans cette liste.`, 'info');
     }
 }
 
 function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
+    closeAccessibleModal(document.getElementById('modal-overlay'));
     _currentSender = null;
     _currentSenderIndex = -1;
 }
@@ -1369,7 +1572,12 @@ async function deleteFromModal() {
     const index = _currentSenderIndex;
     const $btn = document.getElementById('modal-btn-delete');
 
-    if (!confirm(`Confirmer la suppression de ${sender.count} emails ?`)) return;
+    const ok = await showConfirm({
+        title: 'Tout supprimer',
+        message: `Confirmer la mise à la corbeille de ${sender.count} email(s) de cet expéditeur ?`,
+        confirmLabel: '🗑️ Tout supprimer',
+    });
+    if (!ok) return;
 
     // Loading UI
     $btn.textContent = "⏳ Suppression...";
@@ -1414,12 +1622,12 @@ async function deleteFromModal() {
             }
 
         } else {
-            alert(`Erreur : ${data.message || "\u00C9chec"}`);
+            showToast(`Erreur : ${data.message || "\u00C9chec"}`, 'error');
             $btn.textContent = "\u274C Erreur";
         }
     } catch (err) {
         console.error(err);
-        alert("Erreur serveur");
+        showToast("Erreur serveur", 'error');
         $btn.textContent = "\u274C Erreur";
     }
 }
@@ -1435,7 +1643,12 @@ async function deleteSelectedFromModal() {
     const messageIdsToDelete = checkedBoxes.map(cb => cb.value);
     const $btn = document.getElementById('modal-btn-delete-selected');
 
-    if (!confirm(`Confirmer la suppression de ${messageIdsToDelete.length} email(s) s\u00E9lectionn\u00E9(s) ?`)) return;
+    const ok = await showConfirm({
+        title: 'Supprimer la s\u00E9lection',
+        message: `Confirmer la mise \u00E0 la corbeille de ${messageIdsToDelete.length} email(s) s\u00E9lectionn\u00E9(s) ?`,
+        confirmLabel: '\uD83D\uDDD1\uFE0F Supprimer',
+    });
+    if (!ok) return;
 
     // Loading UI
     if ($btn) {
@@ -1502,13 +1715,13 @@ async function deleteSelectedFromModal() {
             }
 
         } else {
-            alert(`Erreur : ${data.message || "\u00C9chec"}`);
+            showToast(`Erreur : ${data.message || "\u00C9chec"}`, 'error');
             updateSelectionBtn();
             if ($delAllBtn) $delAllBtn.disabled = false;
         }
     } catch (err) {
         console.error(err);
-        alert("Erreur serveur");
+        showToast("Erreur serveur", 'error');
         updateSelectionBtn();
         const $delAllBtn = document.getElementById('modal-btn-delete');
         if ($delAllBtn) $delAllBtn.disabled = false;
@@ -1557,14 +1770,11 @@ function openScoreDetails() {
     `;
     $list.appendChild(totalItem);
 
-    $modal.classList.remove('hidden');
+    openAccessibleModal($modal);
 }
 
 function closeScoreModal() {
-    const $modal = document.getElementById('modal-score');
-    if ($modal) {
-        $modal.classList.add('hidden');
-    }
+    closeAccessibleModal(document.getElementById('modal-score'));
 }
 
 // ═══════════════════════════════════════════════════════════

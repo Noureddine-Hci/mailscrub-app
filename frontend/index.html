@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/css/style.css?v=sprint2_ux">
+    <link rel="stylesheet" href="/css/style.css?v=sprint2_a11y">
 </head>
 
 <body>
@@ -349,13 +349,13 @@
     <!-- SENDER DETAILS MODAL                                    -->
     <!-- ════════════════════════════════════════════════════════ -->
     <div id="modal-overlay" class="modal-overlay hidden">
-        <div class="modal-card">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-sender-name">
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title" id="modal-sender-name">Expéditeur</h3>
                     <p class="modal-subtitle" id="modal-sender-email">email@example.com</p>
                 </div>
-                <button class="btn-icon-close" onclick="closeModal()">×</button>
+                <button class="btn-icon-close" onclick="closeModal()" aria-label="Fermer">×</button>
             </div>
 
             <div class="modal-body">
@@ -407,13 +407,13 @@
     <!-- SCORE DETAILS MODAL                                      -->
     <!-- ════════════════════════════════════════════════════════ -->
     <div id="modal-score" class="modal-overlay hidden">
-        <div class="modal-card">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-score-title">
             <div class="modal-header">
                 <div>
-                    <h3 class="modal-title">Détail de votre score</h3>
+                    <h3 class="modal-title" id="modal-score-title">Détail de votre score</h3>
                     <p class="modal-subtitle">Comment le Mail Health Score est calculé</p>
                 </div>
-                <button class="btn-icon-close" onclick="closeScoreModal()">×</button>
+                <button class="btn-icon-close" onclick="closeScoreModal()" aria-label="Fermer">×</button>
             </div>
 
             <div class="modal-body">
@@ -428,8 +428,33 @@
         </div>
     </div>
 
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- CONFIRMATION DIALOG (remplace window.confirm)           -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div id="modal-confirm" class="modal-overlay hidden" role="alertdialog" aria-modal="true"
+        aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <div class="modal-card modal-card-sm">
+            <div class="modal-header">
+                <h3 class="modal-title" id="confirm-title">Confirmation</h3>
+            </div>
+            <div class="modal-body">
+                <p class="confirm-message" id="confirm-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="confirm-cancel">Annuler</button>
+                <button class="btn-danger" id="confirm-ok">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- TOAST CONTAINER (notifications non bloquantes)          -->
+    <!-- aria-live=polite : annoncé par les lecteurs d'écran      -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
+
     <!-- App JS -->
-    <script src="/js/app.js?v=11"></script>
+    <script src="/js/app.js?v=12"></script>
 </body>
 
 </html>
