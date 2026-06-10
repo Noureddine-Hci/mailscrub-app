@@ -4,6 +4,66 @@ Toutes les modifications notables de ce projet seront documentées ici.
 
 ---
 
+## [v1.1.0 — Durcissement] — 2026-06-10 _(local, non déployé)_
+
+Cycle de durcissement en 3 sprints (branches empilées, non encore fusionnées dans `main`) +
+un correctif critique découvert lors des tests réels. Validé sur un compte Gmail de test.
+
+### 🔒 Sécurité (Sprint 0 · `fix/security-sprint-0`)
+
+- **Anti-CSRF** : vérification du `state` OAuth dans le callback.
+- **Cookie de session** : retrait du `client_secret` (le cookie est *signé, pas chiffré*) ; les
+  identifiants OAuth sont reconstruits côté serveur depuis l'environnement.
+- **Anti-XSS** : tout contenu d'email (sujet, expéditeur) est traité comme **hostile** et passé
+  par `escapeHtml` / `textContent` — jamais d'`innerHTML` brut.
+- **`/api/unsubscribe`** : garde **SSRF** (`_is_safe_public_url`, refus des IP privées/internes) +
+  validation **TLS** des certificats.
+- **`SECRET_KEY`** obligatoire en production (détectée via `K_SERVICE`).
+- **CORS** retiré ; documentation réalignée sur le scope réel `gmail.modify`.
+
+### ⚙️ Fiabilité (Sprint 1 · `fix/reliability-sprint-1`)
+
+- **Suppression en lot** via `batchDelete` / `batchModify` (fin des boucles séquentielles `.execute()`).
+- **Retry automatique** sur `429` / `5xx` + vraie détection de batch vide.
+- **Clamp** de la limite de scan (`limit ≤ 5000`).
+- **Vrais non-lus** : compteur réel via `is:unread` (au lieu de l'estimation `total × 0.4`).
+- **Catégorisation** Newsletter renforcée via l'en-tête `List-Unsubscribe`.
+- Nettoyage de code mort JS + **suite de 13 tests pytest**.
+
+### ♿ UX / Accessibilité (Sprint 2 · `feat/ux-sprint-2`)
+
+- **Navbar responsive** (`flex-wrap` <768px) + respect de `prefers-reduced-motion`.
+- **Toasts non bloquants** (success/error/warning/info, `aria-live`) remplaçant les 14 `alert()`.
+- **Dialog de confirmation accessible** (basé sur une `Promise`) remplaçant les 3 `confirm()`.
+- **Modales accessibles** : `role=dialog` / `aria-modal` / `aria-labelledby`, fermeture **`Échap`**,
+  **focus-trap** géré en pile (confirmation par-dessus une modale), restauration du focus au déclencheur.
+- `aria-label` sur les boutons emoji, focus ring **`:focus-visible`**, **breakpoint tablette ~1024px**,
+  états vides propres (construits en DOM pur, anti-XSS).
+
+### 🐛 Corrigé
+
+- **[CRITIQUE] Désabonnement HTTP cassé à 100 %** (`fix/unsubscribe-urllib-scope`) : un
+  `import urllib.parse` **local** dans la branche `mailto` de `unsubscribe()` faisait de `urllib`
+  une variable locale à **toute** la fonction → la branche HTTP levait un `UnboundLocalError`
+  *avant même de contacter le serveur*. Tous les désabonnements `http` tombaient silencieusement
+  en fallback. L'import local (redondant avec l'import module) a été supprimé.
+
+### ✅ Validé en réel (compte Gmail de test)
+
+- Scan **1000 mails / ~200 expéditeurs**, 0 erreur console.
+- Suppression `batchModify` **prouvée en corbeille Gmail** (puis restaurée).
+- Désabonnement **opérationnel après correctif** (≈ 42/49 réussis ; les autres tombent en fallback
+  côté serveurs tiers, action manuelle).
+- Modales + `Échap` + focus, toasts et dialog de confirmation vérifiés sur données réelles.
+- Nettoyage réel : **328 mails → corbeille (0 erreur)**, expéditeurs sensibles (banque/gouv/livraison)
+  protégés par une denylist.
+
+> ⚠️ **Limitation connue** : les compteurs reflètent la *fenêtre scannée* (N mails récents), pas le
+> total à vie ; l'override `List-Unsubscribe` est un peu large (des transactionnels — banque, reçus —
+> peuvent finir « Newsletter »). À affiner.
+
+---
+
 ## [v1.0.0 Officielle] — 2026-02-21
 
 ### 🎉 Lancement Officiel V1

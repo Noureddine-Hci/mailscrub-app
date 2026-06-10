@@ -242,10 +242,21 @@ async def delete_emails(request: Request):
 
 @router.post("/unsubscribe")
 async def unsubscribe(request: Request):
-    """
-    Tente de se désabonner automatiquement.
-    - Si mailto: envoie un mail.
-    - Si http: visite le lien (GET).
+    """Tente un désabonnement automatique à partir d'un lien `List-Unsubscribe`.
+
+    Corps attendu : ``{"email": str, "link": str}`` (le lien est déjà extrait côté
+    frontend depuis l'en-tête, sous forme `https://…` ou `mailto:…`).
+
+    Comportement :
+      - **mailto:** → envoie un e-mail de désabonnement via l'API Gmail (`messages.send`).
+      - **http(s):** → garde SSRF (`_is_safe_public_url`) puis GET côté serveur, TLS vérifié,
+        timeout 10 s. ``2xx`` ⇒ ``{"success": true}`` ; sinon/exception ⇒ ``{"fallback": true}``
+        (l'UI ouvre alors le lien pour une action manuelle — beaucoup de services refusent le
+        GET automatisé en 403/405/timeout).
+
+    ⚠️ Ne JAMAIS faire d'`import` local d'un module ici : un `import` dans une branche rend la
+    cible locale à toute la fonction (UnboundLocalError dans les autres branches). Tous les
+    imports `urllib.*` sont au niveau module.
     """
     service, err = _get_gmail_service(request)
     if err:
