@@ -269,7 +269,9 @@ async def unsubscribe(request: Request):
             subject = "Unsubscribe"
             if "subject=" in link:
                 subject = link.split("subject=")[1].split("&")[0]
-                import urllib.parse
+                # urllib.parse est déjà importé au niveau module. Un `import` local ici
+                # ferait de `urllib` une variable locale à TOUTE la fonction (Python),
+                # provoquant un UnboundLocalError dans la branche HTTP plus bas.
                 subject = urllib.parse.unquote(subject)
 
             # Create message
