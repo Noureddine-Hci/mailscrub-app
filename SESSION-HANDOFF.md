@@ -108,3 +108,7 @@ python -m pytest                                          # 13 tests (sous Windo
 - Le serveur du `launch.json` (preview) tourne **sans `--reload`** → redémarrer après un changement backend.
 - Test réel : Chrome « Browser 1 » + compte `nordinehouichi2307@gmail.com`.
 - Déploiement : **cible = Azure** (l'ancienne commande `gcloud run deploy` est à remplacer — cf. Chantier A).
+- **CI / GitHub Pages (À DÉSACTIVER)** : Pages est activé sur `main:/docs` (dossier inexistant) → builds Jekyll
+  en échec à **chaque push** (spam de notifs GitHub + email). Inoffensif pour l'app (hébergée via FastAPI, pas Pages).
+  → Désactiver : repo **Settings → Pages → Source = None**, ou `gh api -X DELETE repos/Noureddine-Hci/mailscrub-app/pages`.
+  Aucun workflow CI custom dans le repo (`.github/` absent).
