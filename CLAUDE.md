@@ -4,7 +4,8 @@
 - **MailScrub.app** : SaaS d'analyse et nettoyage de boîte mail (stateless / privacy-first).
 - Stack : **FastAPI (Python 3.12)** backend · **SPA Vanilla HTML/CSS/JS** (sans build) frontend.
 - Auth/API : **Google OAuth 2.0 + Gmail API v1** (scope `gmail.modify`).
-- Déploiement : **Google Cloud Run** (europe-west1, projet `mailscrub-app`), Docker.
+- Déploiement : **Azure Container Apps** (swedencentral), image sur **ghcr.io**, live sur **https://www.mailscrub.app**.
+  Détection prod via `ENV=production` (plus `K_SERVICE`). Détails : `.agent/workflows/deploy.md` + `SESSION-HANDOFF.md`.
 - Langue de communication : **français**.
 - Dev : Noureddine Houichi · Repo : https://github.com/Noureddine-Hci/mailscrub-app
 
@@ -67,6 +68,7 @@
   - **Sprint 2 UX/a11y ✅** — toasts, dialog de confirmation accessible, modales (Échap/focus-trap),
     breakpoint tablette, états vides. Validé en réel.
   - **Fix désabonnement ✅** — `UnboundLocalError` qui cassait `/api/unsubscribe` (http) corrigé, vérifié en réel.
-  - **Phase 2** (sécurité avancée / rapports / multi-provider) puis **Phase 3** (Stripe) — à venir.
+  - **Chantier A — Déploiement Azure ✅** (2026-06-10) — live sur **https://www.mailscrub.app** (ACA + ghcr.io + TLS managé).
+  - **Chantier B — Dé-« IA-iser » l'UI/copy** = prochaine priorité. **Phase 2/3** (sécu avancée, rapports, Stripe) ensuite.
 - ✅ Une seule branche : `main` (local = remote, à jour sur `origin`). Plus de branches de sprint.
-- ✅ Mails de test Pathé restaurés. Déploiement Cloud Run **non refait** depuis la fusion (déploiement manuel).
+- ✅ Mails de test Pathé restaurés. App déployée sur Azure (cf. `SESSION-HANDOFF.md` pour l'état DNS/domaine).

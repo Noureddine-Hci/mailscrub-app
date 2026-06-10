@@ -1,19 +1,21 @@
 # 🤝 Passation de session — MailScrub.app
 
 > **Pour reprendre :** nouvelle session dans ce dossier → « **Reprends MailScrub, lis `SESSION-HANDOFF.md`** ».
-> Dernière mise à jour : **2026-06-10** (session déploiement Azure).
+> Dernière mise à jour : **2026-06-10** (session déploiement Azure + domaine custom).
 
 ---
 
 ## ⚡ TL;DR
 
 - **Tout est sur `main`** (à jour, poussé sur `origin`, **13 tests pytest verts**). Une seule branche, workflow **GitHub Flow**.
-- **Chantier A — Déploiement Azure ✅ FAIT** : app live sur Azure Container Apps (swedencentral).
-  - URL : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
-  - Image : `ghcr.io/noureddine-hci/mailscrub:latest`
-  - Login OAuth testé et fonctionnel.
+- **Chantier A — Déploiement Azure ✅ FAIT** : app live et **branchée sur le domaine custom**.
+  - 🌐 **URL publique : https://www.mailscrub.app** (TLS Azure managé actif, vérifié dans le navigateur).
+  - URL technique Azure (fallback) : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
+  - Image : `ghcr.io/noureddine-hci/mailscrub:latest` · Login OAuth testé et fonctionnel.
 - **Chantier B — Dé-« IA-iser » le produit** : prochaine priorité.
 - **Prochaine action n°1 : Chantier B** (refonte UI/copy — voir plus bas).
+- ⚠️ **2 petits restes** : (1) nettoyer 4 vieux records DNS `A` chez Netim ; (2) le domaine **apex** `mailscrub.app`
+  (sans `www`) n'est pas branché — voir « Domaine custom » plus bas.
 
 ---
 
@@ -57,6 +59,20 @@
 - ACR (Azure Container Registry) **non disponible** sur Azure for Students → utiliser ghcr.io
 - Log Analytics idem → Container Apps env créé avec `--logs-destination none`
 - `westeurope`/`eastus` bloqués pour ACA → `swedencentral` fonctionne
+- **GitHub PAT** : un PAT (scope `write:packages`) sert au `docker push` ET au pull par Azure
+  (stocké chiffré dans le secret Azure `ghcrio-noureddine-hci`). ⚠️ **Expire ~90 j** → quand il expire, Azure ne
+  pourra plus pull de nouvelle révision : régénérer le PAT et le re-set via `az containerapp registry set`.
+
+**Domaine custom (Netim → Azure) :**
+- ✅ `www.mailscrub.app` : **branché + TLS managé actif** (`BindingType: SniEnabled`). C'est l'URL publique.
+- DNS chez Netim (fichier de zone) : `CNAME www → mailscrub.gentlemushroom-...azurecontainerapps.io`,
+  + 2 `TXT asuid` (racine et `asuid.www`) pour la validation Azure.
+- OAuth Google : redirect URI `https://www.mailscrub.app/auth/callback` déjà ajouté + autorisé.
+- ⏳ **Reste 1 — apex `mailscrub.app` (sans www)** : Netim **refuse un CNAME à la racine** (limite DNS standard).
+  Options : (a) créer une **redirection web** Netim `mailscrub.app → https://www.mailscrub.app` (simple, recommandé) ;
+  (b) chercher un type ALIAS/ANAME si Netim le propose. Pour l'instant seul `www` marche.
+- ⏳ **Reste 2 — ménage DNS** : 4 vieux records `A mailscrub.app → 216.239.x.x` (Google, orphelins) à **supprimer**
+  chez Netim. Non bloquants mais sales.
 
 **Workflow de redéploiement :** voir `.agent/workflows/deploy.md`
 
@@ -100,7 +116,12 @@ python -m pytest                                          # 13 tests (sous Windo
   Workflow = **GitHub Flow** (`main` déployable + branches courtes, fusion dès que vert, suppression ensuite).
 - Le serveur du `launch.json` (preview) tourne **sans `--reload`** → redémarrer après un changement backend.
 - Test réel : Chrome « Browser 1 » + compte `nordinehouichi2307@gmail.com`.
-- Déploiement : **cible = Azure** (l'ancienne commande `gcloud run deploy` est à remplacer — cf. Chantier A).
+- **Déploiement = Azure Container Apps** (live sur https://www.mailscrub.app). Étapes complètes dans
+  `.agent/workflows/deploy.md`. Résumé : `docker build` + `push` ghcr.io (via WSL Debian) → `az containerapp update`.
+- **Azure CLI** : `az` installé (v2.87, via winget). Login : `az login --tenant 108bc864-cdf5-4ec3-8b7c-4eb06be1b41d`.
+  Sous Bash, `az` n'est pas dans le PATH → utiliser **PowerShell** et recharger le PATH en tête de commande :
+  `$env:PATH = [System.Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('PATH','User')`.
+- **Docker = WSL Debian** (pas Docker Desktop). L'appeler depuis PowerShell : `wsl -d Debian -- docker ...`.
 - **CI / GitHub Pages (À DÉSACTIVER)** : Pages est activé sur `main:/docs` (dossier inexistant) → builds Jekyll
   en échec à **chaque push** (spam de notifs GitHub + email). Inoffensif pour l'app (hébergée via FastAPI, pas Pages).
   → Désactiver : repo **Settings → Pages → Source = None**, ou `gh api -X DELETE repos/Noureddine-Hci/mailscrub-app/pages`.
