@@ -19,8 +19,12 @@
 - `frontend/index.html` · `frontend/js/app.js` · `frontend/css/style.css`
 - `ROADMAP.md` · `CHANGELOG.md` · `ARCHITECTURE.md`
 
-## Git & commits
-- Ne jamais travailler directement sur `main`. Une branche par lot : `fix/...`, `feat/...`.
+## Git & commits (GitHub Flow — projet solo)
+- **`main` est toujours déployable.** Pour chaque changement, créer une **branche courte**
+  (`fix/...`, `feat/...`), la fusionner dans `main` dès que c'est **testé/vert**, puis la **supprimer**.
+- Ne pas committer directement sur `main`, et ne **pas empiler/accumuler** les branches (pas une
+  branche permanente par sprint) : branches courtes, vite fusionnées, vite supprimées.
+- Avant fusion dans `main` : `pytest` vert (+ vérif navigateur réelle si pertinent).
 - Commits conventionnels : `type(scope): description` (feat, fix, docs, refactor, chore).
 - Regrouper par feature logique, pas un commit par fichier.
 
@@ -49,11 +53,12 @@
 ## État & roadmap
 - 👉 **REPRISE DE SESSION : lire `SESSION-HANDOFF.md` en premier** (état détaillé, branches,
   ce qui est validé en réel, points ouverts). Plan complet : `~/.claude/plans/ok-tu-peut-me-binary-deer.md`.
-- Avancement (au 2026-06-10) :
-  - **Sprint 0 Sécurité ✅** (`fix/security-sprint-0`, commit `ee7db7b`) — validé en réel.
-  - **Sprint 1 Fiabilité ✅** (`fix/reliability-sprint-1`, commit `f073535`) — validé en réel + 13 tests pytest.
-  - **Sprint 2 UX/a11y 🚧** (`feat/ux-sprint-2`, commit `9bb2100`) — navbar responsive + reduced-motion faits ;
-    restent toasts, modales accessibles, breakpoint tablette.
+- Avancement (au 2026-06-10) — **tout fusionné dans `main`** (`6b9e60a`), branches de sprint supprimées :
+  - **Sprint 0 Sécurité ✅** — validé en réel.
+  - **Sprint 1 Fiabilité ✅** — validé en réel + 13 tests pytest.
+  - **Sprint 2 UX/a11y ✅** — toasts, dialog de confirmation accessible, modales (Échap/focus-trap),
+    breakpoint tablette, états vides. Validé en réel.
+  - **Fix désabonnement ✅** — `UnboundLocalError` qui cassait `/api/unsubscribe` (http) corrigé, vérifié en réel.
   - **Phase 2** (sécurité avancée / rapports / multi-provider) puis **Phase 3** (Stripe) — à venir.
-- ⚠️ Branche courante `feat/ux-sprint-2` ; aucune branche fusionnée dans `main`.
-- ⚠️ Point ouvert immédiat : restaurer 4 mails de test Pathé (voir handoff).
+- ✅ Une seule branche : `main` (local = remote, à jour sur `origin`). Plus de branches de sprint.
+- ✅ Mails de test Pathé restaurés. Déploiement Cloud Run **non refait** depuis la fusion (déploiement manuel).

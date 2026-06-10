@@ -21,8 +21,9 @@ Branches empilées (aucune fusionnée dans `main` pour l'instant) :
 | `feat/ux-sprint-2` | `13747b7` | **Sprint 2 (partie 2 — FINI)** : toasts non bloquants (remplacent 14 `alert`), dialog de confirmation accessible Promise (remplace 3 `confirm`), modales `role=dialog`/`aria-modal`/`aria-labelledby` + fermeture Échap + focus-trap en pile + restauration focus, `aria-label` sur boutons emoji, breakpoint tablette ~1024px, focus ring `:focus-visible`, états vides propres (DOM pur anti-XSS) |
 | `fix/unsubscribe-urllib-scope` | `9fdf9f3` | **Fix désabonnement HTTP** : supprime un `import urllib.parse` local qui provoquait un `UnboundLocalError` (désabo http cassé à 100 %). Vérifié en réel. |
 
-**Branche courante : `fix/unsubscribe-urllib-scope`** (empilée sur `feat/ux-sprint-2`). Working tree propre.
-**Les 4 branches sont POUSSÉES sur `origin`** (via le token `gh`, compte `Noureddine-Hci`). Seule `main` n'est pas poussée (1 commit local `af819cc`).
+**TOUT EST FUSIONNÉ DANS `main`** (`6b9e60a`, fast-forward, 13 tests verts) et **poussé sur `origin`**
+(via le token `gh`, compte `Noureddine-Hci`). Les 4 branches de sprint ont été **supprimées** (local + remote).
+Workflow désormais : **GitHub Flow** (`main` déployable + branches courtes). Une seule branche : `main`.
 
 ---
 
@@ -67,10 +68,9 @@ Compte de test : `nordinehouichi2307@gmail.com` · extension Chrome « Browser 1
    (banque/gouv/livraison/Google compte) écartés par denylist, Pathé/Facebook/RATP préservés.
    ⚠️ Serveur lancé **sans `--reload`** (launch.json) → un changement backend exige un restart manuel.
 
-4. **Fusion vers `main` (À DÉCIDER)** : les 4 branches sont poussées sur `origin` ✅.
-   Reste : ouvrir les PR et choisir la stratégie de fusion (la pile est linéaire :
-   sprint-0 → sprint-1 → sprint-2 → fix-unsubscribe ; `fix/unsubscribe-urllib-scope` contient tout).
-   `main` local a 1 commit non poussé (`af819cc`, pages Privacy/Terms) — à intégrer via PR aussi.
+4. ✅ **FAIT — Tout fusionné dans `main` + poussé** (fast-forward, sans conflit). Branches de sprint
+   supprimées. Passage en **GitHub Flow** (`main` déployable + branches courtes). Règle git mise à jour dans `CLAUDE.md`.
+   ⏳ Reste optionnel : **re-déployer sur Cloud Run** (`gcloud run deploy`, manuel) pour mettre la prod à jour.
 
 5. **Reste optionnel** : 53 expéditeurs « unitaires » (1-2 mails) non traités ; 7 désabos manuels à finir
    (Azure, Microsoft, G2A, Google[marketing], CAPCOM, AMD, Bulk™).
