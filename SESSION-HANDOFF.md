@@ -18,9 +18,10 @@ Branches empilées (aucune fusionnée dans `main` pour l'instant) :
 | `fix/reliability-sprint-1` | `f073535` | **Sprint 1 Fiabilité** : suppression batchée (`batchDelete`/`batchModify`), retry 429/5xx + vraie détection vide, clamp `limit≤5000`, vrais non-lus (`is:unread`), catégorisation via `List-Unsubscribe`, nettoyage code mort JS, **suite pytest (13 tests ✓)** |
 | (mêmes) | `4db5a02`, `4133404` | Organisation projet : `MailScrub/CLAUDE.md`, skill `ui-ux-pro-max` versionnée, workflows `.agent/` |
 | `feat/ux-sprint-2` | `9bb2100` | **Sprint 2 (partie 1)** : navbar responsive (`flex-wrap` <768px), `prefers-reduced-motion`, bump version CSS anti-cache |
-| `feat/ux-sprint-2` | _(à committer)_ | **Sprint 2 (partie 2 — FINI)** : toasts non bloquants (remplacent 14 `alert`), dialog de confirmation accessible Promise (remplace 3 `confirm`), modales `role=dialog`/`aria-modal`/`aria-labelledby` + fermeture Échap + focus-trap en pile + restauration focus, `aria-label` sur boutons emoji, breakpoint tablette ~1024px, focus ring `:focus-visible`, états vides propres (DOM pur anti-XSS) |
+| `feat/ux-sprint-2` | `13747b7` | **Sprint 2 (partie 2 — FINI)** : toasts non bloquants (remplacent 14 `alert`), dialog de confirmation accessible Promise (remplace 3 `confirm`), modales `role=dialog`/`aria-modal`/`aria-labelledby` + fermeture Échap + focus-trap en pile + restauration focus, `aria-label` sur boutons emoji, breakpoint tablette ~1024px, focus ring `:focus-visible`, états vides propres (DOM pur anti-XSS) |
+| `fix/unsubscribe-urllib-scope` | `9fdf9f3` | **Fix désabonnement HTTP** : supprime un `import urllib.parse` local qui provoquait un `UnboundLocalError` (désabo http cassé à 100 %). Vérifié en réel. |
 
-**Branche courante : `feat/ux-sprint-2`.** Working tree propre (hors `.claude/launch.json`, gitignoré).
+**Branche courante : `fix/unsubscribe-urllib-scope`** (empilée sur `feat/ux-sprint-2`). Working tree : `SESSION-HANDOFF.md` modifié (à committer).
 
 ---
 
@@ -57,10 +58,19 @@ Compte de test : `nordinehouichi2307@gmail.com` · extension Chrome « Browser 1
 2. ✅ **FAIT — Sprint 2 (UX/a11y) terminé** (toasts, dialog de confirmation accessible, modales
    `role=dialog`/Échap/focus-trap, `aria-label`, breakpoint ~1024px, états vides). Validé en réel. _À committer._
 
-3. **Tester `/api/unsubscribe` en réel** (un lien `http` de newsletter + la garde SSRF). ← prochain point ouvert.
+3. ✅ **FAIT — `/api/unsubscribe` testé en réel → a révélé + corrigé un BUG.** Le désabonnement HTTP
+   était cassé à 100 % (`UnboundLocalError` : un `import urllib.parse` local dans la branche `mailto`
+   rendait `urllib` local à toute la fonction). Corrigé sur **`fix/unsubscribe-urllib-scope`** (`9fdf9f3`).
+   Avant : fallback 9/9. Après : 42 désabos réussis sur 49 (7 fallbacks réels côté serveurs tiers).
+   Opération de nettoyage réelle effectuée : **328 mails → corbeille (0 erreur)**, 13 expéditeurs sensibles
+   (banque/gouv/livraison/Google compte) écartés par denylist, Pathé/Facebook/RATP préservés.
+   ⚠️ Serveur lancé **sans `--reload`** (launch.json) → un changement backend exige un restart manuel.
 
 4. **Push / fusion (REPORTÉ)** : rien n'est encore poussé sur le remote — tout est local.
-   Décider : pousser les branches sprint-0/1/2 (sauvegarde + PR) puis stratégie de fusion vers `main`.
+   Branches à pousser : sprint-0/1/2 + **`fix/unsubscribe-urllib-scope`**. Décider la stratégie de fusion vers `main`.
+
+5. **Reste optionnel** : 53 expéditeurs « unitaires » (1-2 mails) non traités ; 7 désabos manuels à finir
+   (Azure, Microsoft, G2A, Google[marketing], CAPCOM, AMD, Bulk™).
 
 ## 🐞 Trouvailles à traiter (notées pendant le test réel, non bloquantes)
 
