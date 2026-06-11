@@ -817,12 +817,14 @@ body {
 
 .search-icon {
     position: absolute;
-    left: 12px;
+    left: 11px;
     top: 50%;
     transform: translateY(-50%);
-    opacity: 0.4;
-    font-size: 0.9rem;
+    opacity: 0.45;
     pointer-events: none;
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
 }
 
 .search-box input {
@@ -910,7 +912,7 @@ body {
 .space-item.recoverable { border-left: 3px solid var(--accent-terra); }
 .space-item.freed { border-left: 3px solid var(--accent-pine); }
 
-.space-icon { display: block; font-size: 1.4rem; margin-bottom: 8px; }
+.space-icon { display: flex; justify-content: center; margin-bottom: 10px; color: var(--text-muted); }
 
 .space-value {
     display: block;

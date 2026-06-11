@@ -58,7 +58,7 @@
 
         <div class="hero">
             <div class="hero-content">
-                <p class="hero-eyebrow">Par Noureddine H. · Open source · Gratuit</p>
+                <p class="hero-eyebrow">Par un développeur solo · Open source · Gratuit</p>
                 <h1 class="hero-title">
                     Votre boîte Gmail,<br>
                     <span class="hero-accent">enfin lisible.</span>
@@ -115,7 +115,7 @@
 
         <!-- Ce qu'on lit / ce qu'on ne lit jamais -->
         <div id="features" class="trust-section">
-            <h2 class="trust-section-title">Ce qu'on lit. Ce qu'on ne lit jamais.</h2>
+            <h2 class="trust-section-title">Ce qu'on lit. Ce qu'on ne touche pas.</h2>
             <p class="trust-section-sub">Clair, vérifiable, et dans le code si vous voulez en avoir le cœur net.</p>
 
             <div class="trust-grid">
@@ -206,7 +206,7 @@
                 et que les outils existants me demandaient trop de confiance.
                 Celui-là, vous pouvez l'auditer."
             </p>
-            <cite class="creator-cite">— Noureddine H., développeur full-stack</cite>
+            <cite class="creator-cite">— le créateur</cite>
         </div>
 
         <!-- Footer -->
@@ -220,7 +220,7 @@
                     <span>·</span>
                     <a href="/privacy.html">Confidentialité</a>
                 </div>
-                <p class="copyright">© 2026 MailScrub · Fait par Noureddine H.</p>
+                <p class="copyright">© 2026 MailScrub</p>
             </div>
         </footer>
     </section>
@@ -238,7 +238,7 @@
                 <div class="progress-track"
                     style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden;">
                     <div id="progress-bar"
-                        style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366f1, #d946ef); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);">
+                        style="width: 0%; height: 100%; background: var(--accent-pine); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px;">
                     </div>
                 </div>
             </div>
@@ -256,7 +256,11 @@
     <section id="dashboard" class="section-dashboard hidden">
         <nav class="navbar">
             <div class="logo">
-                <span class="logo-icon">📧</span>
+                <span class="logo-icon">
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+                        <path d="M3 6h16M6 11h10M9.5 16h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </span>
                 <span class="logo-text">MailScrub</span>
                 <span class="logo-badge">.app</span>
             </div>
@@ -300,11 +304,9 @@
                             </div>
                         </div>
                         <p class="score-label" id="score-label">Calcul en cours...</p>
-                        <div
-                            style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-top:10px; opacity:0.8;">
-                            <span style="display:inline-block; margin-right:4px;">💡</span> Cliquez pour comprendre le
-                            score
-                        </div>
+                        <p style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-top:10px;">
+                            Cliquez pour comprendre le score
+                        </p>
                     </div>
                 </div>
 
@@ -319,12 +321,17 @@
 
             <!-- Row 2 : Top Senders -->
             <div class="card card-senders">
-                <h3 class="card-title">🏆 Top Expéditeurs</h3>
+                <h3 class="card-title">Top Expéditeurs</h3>
 
                 <!-- Search & Sort Controls -->
                 <div class="senders-controls">
                     <div class="search-box">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="5.5" cy="5.5" r="4"/>
+                                <path d="M9 9l3 3" stroke-linecap="round"/>
+                            </svg>
+                        </span>
                         <input type="text" id="sender-search" placeholder="Rechercher un expéditeur...">
                     </div>
                     <div class="sort-buttons">
@@ -346,7 +353,7 @@
 
             <!-- Row 2 : Quick Actions (Win) -->
             <div class="card card-suggestions" id="quick-actions-card" style="display: none;">
-                <h3 class="card-title">⚡ Nettoyage Rapide</h3>
+                <h3 class="card-title">Nettoyage Rapide</h3>
                 <div class="suggestions-grid" id="suggestions-list">
                     <!-- Cards will be injected here -->
                 </div>
@@ -354,20 +361,32 @@
 
             <!-- Row 2.5 : Space Summary (shown only for real data) -->
             <div class="card card-space" id="space-summary" style="display: none;">
-                <h3 class="card-title">💾 Espace mail analysé</h3>
+                <h3 class="card-title">Espace mail analysé</h3>
                 <div class="space-grid">
                     <div class="space-item">
-                        <span class="space-icon">📊</span>
+                        <span class="space-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                                <rect x="3" y="12" width="4" height="7" rx="1"/><rect x="9" y="7" width="4" height="12" rx="1"/><rect x="15" y="3" width="4" height="16" rx="1"/>
+                            </svg>
+                        </span>
                         <span class="space-value" id="space-total">0 o</span>
                         <span class="space-label">Espace total analysé</span>
                     </div>
                     <div class="space-item recoverable">
-                        <span class="space-icon">♻️</span>
+                        <span class="space-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+                            </svg>
+                        </span>
                         <span class="space-value" id="space-recoverable">0 o</span>
                         <span class="space-label">Espace récupérable</span>
                     </div>
                     <div class="space-item freed">
-                        <span class="space-icon">✅</span>
+                        <span class="space-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                        </span>
                         <span class="space-value" id="space-freed" data-bytes="0">0 o</span>
                         <span class="space-label">Espace libéré</span>
                     </div>
@@ -376,7 +395,7 @@
 
             <!-- Row 3 : Recommendations -->
             <div class="card card-recs">
-                <h3 class="card-title">💡 Recommandations</h3>
+                <h3 class="card-title">Recommandations</h3>
                 <div class="recs-list" id="recs-list">
                     <!-- Generated by JS -->
                 </div>
@@ -401,7 +420,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>MailScrub.app — Aucune donnée stockée · 100% Stateless · <a href="/privacy.html">Privacy Policy</a></p>
+            <p>MailScrub.app — Aucune donnée stockée · 100% Stateless · <a href="/privacy.html">Politique de confidentialité</a></p>
         </footer>
     </section>
 
