@@ -45,9 +45,16 @@ function toggleTheme() {
     updateThemeIcons(isDark ? '☀️' : '🌙');
 
     if (typeof Chart !== 'undefined') {
-        Chart.defaults.color = isDark ? '#A89F94' : '#5C574F';
-        if (_analysisData && !$dashboard.classList.contains('hidden')) {
-            renderDashboard(_analysisData);
+        const textColor = isDark ? '#A89F94' : '#5C574F';
+        Chart.defaults.color = textColor;
+        // Update existing chart in-place — no full re-render
+        const chartCanvas = document.getElementById('chart-categories');
+        const chart = chartCanvas && Chart.getChart(chartCanvas);
+        if (chart) {
+            if (chart.options.plugins?.legend?.labels) {
+                chart.options.plugins.legend.labels.color = textColor;
+            }
+            chart.update('none');
         }
     }
 }
