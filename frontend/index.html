@@ -11,14 +11,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
         rel="stylesheet">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/css/style.css?v=sprint2_a11y">
+    <link rel="stylesheet" href="/css/style.css?v=refonte-humain">
 </head>
 
 <body>
@@ -27,20 +27,19 @@
     <!-- LANDING PAGE                                            -->
     <!-- ════════════════════════════════════════════════════════ -->
     <section id="landing" class="section-landing">
-        <!-- Animated background orbs -->
-        <div class="bg-orb bg-orb-1"></div>
-        <div class="bg-orb bg-orb-2"></div>
-        <div class="bg-orb bg-orb-3"></div>
 
         <nav class="navbar landing-nav">
             <div class="logo">
-                <span class="logo-icon">📧</span>
+                <span class="logo-icon">
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+                        <path d="M3 6h16M6 11h10M9.5 16h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </span>
                 <span class="logo-text">MailScrub</span>
                 <span class="logo-badge">.app</span>
             </div>
             <div class="nav-links">
-                <a href="#features" class="nav-link">Fonctionnalités</a>
-                <a href="#faq" class="nav-link">FAQ</a>
+                <a href="#features" class="nav-link">Confidentialité</a>
                 <button id="theme-toggle-landing" class="btn-icon theme-btn" aria-label="Changer le thème"
                     title="Mode Sombre/Clair" onclick="toggleTheme()">
                     <span class="theme-icon">🌙</span>
@@ -59,15 +58,14 @@
 
         <div class="hero">
             <div class="hero-content">
-                <div class="hero-badge">✨ 100% Gratuit · Sans inscription · Sécurisé</div>
+                <p class="hero-eyebrow">Par Noureddine H. · Open source · Gratuit</p>
                 <h1 class="hero-title">
-                    Nettoyez votre boîte Gmail<br>
-                    <span class="gradient-text">en 2 minutes chrono</span>
+                    Votre boîte Gmail,<br>
+                    <span class="hero-accent">enfin lisible.</span>
                 </h1>
                 <p class="hero-subtitle">
-                    Découvrez qui encombre votre inbox, supprimez les newsletters inutiles et libérez de l'espace de
-                    stockage.
-                    <strong>Sans rien installer.</strong>
+                    On lit l'expéditeur, l'objet et la date de vos messages. Jamais leur contenu.
+                    MailScrub classe vos expéditeurs par volume — vous décidez ce qu'on garde.
                 </p>
 
                 <div class="hero-actions">
@@ -75,7 +73,7 @@
                         <label class="scan-option">
                             <input type="radio" name="scan-limit" value="500">
                             <span class="option-content">
-                                <span class="option-icon">⚡</span>
+                                <span class="option-icon">–</span>
                                 <span class="option-text">Rapide</span>
                                 <span class="option-count">500</span>
                             </span>
@@ -83,70 +81,132 @@
                         <label class="scan-option">
                             <input type="radio" name="scan-limit" value="1000" checked>
                             <span class="option-content">
-                                <span class="option-icon">👌</span>
+                                <span class="option-icon">––</span>
                                 <span class="option-text">Complet</span>
-                                <span class="option-count">1000</span>
+                                <span class="option-count">1 000</span>
                             </span>
                         </label>
                         <label class="scan-option">
                             <input type="radio" name="scan-limit" value="2500">
                             <span class="option-content">
-                                <span class="option-icon">🕵️</span>
+                                <span class="option-icon">–––</span>
                                 <span class="option-text">Profond</span>
-                                <span class="option-count">2500</span>
+                                <span class="option-count">2 500</span>
                             </span>
                         </label>
                         <label class="scan-option">
                             <input type="radio" name="scan-limit" value="5000">
                             <span class="option-content">
-                                <span class="option-icon">🤖</span>
+                                <span class="option-icon">––––</span>
                                 <span class="option-text">Max</span>
-                                <span class="option-count">5000</span>
+                                <span class="option-count">5 000</span>
                             </span>
                         </label>
                     </div>
                     <button id="btn-connect" class="btn-primary">
-                        <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                            <polyline points="10 17 15 12 10 7" />
-                            <line x1="15" y1="12" x2="3" y2="12" />
-                        </svg>
-                        Scanner ma boîte mail
+                        Scanner ma boîte Gmail
                     </button>
-                </div>
-
-                <p class="hero-trust">🔒 Aucune donnée stockée · Code Open Source</p>
-                <div class="hero-demo">
-                    <a href="#" onclick="startAnalysis(false); return false;" class="link-demo">Voir une démo sans
-                        connexion</a>
+                    <a href="#" onclick="startAnalysis(false); return false;" class="link-demo">
+                        Voir un exemple sans connexion
+                    </a>
                 </div>
             </div>
         </div>
 
-        <!-- Features Section -->
-        <div id="features" class="features-section">
-            <h2 class="section-title">Pourquoi utiliser MailScrub ?</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🛡️</div>
-                    <h3>Privacy First</h3>
-                    <p>Nous ne stockons <strong>aucun email</strong>. Tout est analysé en temps réel dans votre
-                        navigateur et nos serveurs éphémères.</p>
+        <!-- Ce qu'on lit / ce qu'on ne lit jamais -->
+        <div id="features" class="trust-section">
+            <h2 class="trust-section-title">Ce qu'on lit. Ce qu'on ne lit jamais.</h2>
+            <p class="trust-section-sub">Clair, vérifiable, et dans le code si vous voulez en avoir le cœur net.</p>
+
+            <div class="trust-grid">
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#1F7A5A" stroke-width="1.5"/>
+                            <path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="#1F7A5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">L'expéditeur (From:)</span>
+                        <span class="trust-desc">Qui vous écrit, combien de fois, quel volume.</span>
+                    </span>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Ultra Rapide</h3>
-                    <p>Grâce à notre algorithme optimisé, analysez des milliers d'emails en quelques secondes seulement.
-                    </p>
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#1F7A5A" stroke-width="1.5"/>
+                            <path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="#1F7A5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">L'objet (Subject:)</span>
+                        <span class="trust-desc">Pour détecter newsletters et promotions.</span>
+                    </span>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🧹</div>
-                    <h3>Actions Massives</h3>
-                    <p>Désabonnez-vous de 50 newsletters d'un coup ou supprimez tous les mails d'un expéditeur inconnu.
-                    </p>
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#1F7A5A" stroke-width="1.5"/>
+                            <path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="#1F7A5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">La date d'envoi</span>
+                        <span class="trust-desc">Pour trier et proposer les actions pertinentes.</span>
+                    </span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#9A9589" stroke-width="1.5"/>
+                            <path d="M7 7l6 6M13 7l-6 6" stroke="#9A9589" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">Le contenu de vos messages</span>
+                        <span class="trust-desc">Jamais lu. Ni analysé. Ni transmis.</span>
+                    </span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#9A9589" stroke-width="1.5"/>
+                            <path d="M7 7l6 6M13 7l-6 6" stroke="#9A9589" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">Vos données côté serveur</span>
+                        <span class="trust-desc">Rien n'est stocké. L'analyse est stateless.</span>
+                    </span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="9" stroke="#9A9589" stroke-width="1.5"/>
+                            <path d="M7 7l6 6M13 7l-6 6" stroke="#9A9589" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="trust-label">Cookies analytiques</span>
+                        <span class="trust-desc">Zéro tracker. Zéro analytics tiers.</span>
+                    </span>
                 </div>
             </div>
+
+            <a href="https://github.com/Noureddine-Hci/mailscrub-app" target="_blank" class="trust-code-link">
+                Code source ouvert — vérifiez vous-même →
+            </a>
+        </div>
+
+        <!-- Note du créateur -->
+        <div class="creator-note">
+            <hr class="creator-divider">
+            <p class="creator-quote">
+                "J'ai créé MailScrub parce que ma boîte Gmail avait des milliers de mails non lus
+                et que les outils existants me demandaient trop de confiance.
+                Celui-là, vous pouvez l'auditer."
+            </p>
+            <cite class="creator-cite">— Noureddine H., développeur full-stack</cite>
         </div>
 
         <!-- Footer -->
@@ -154,13 +214,13 @@
             <div class="footer-content">
                 <div class="footer-logo">MailScrub.app</div>
                 <div class="footer-links">
-                    <a href="https://github.com/Noureddine-Hci/mailscrub-app" target="_blank">Code Source (GitHub)</a>
+                    <a href="https://github.com/Noureddine-Hci/mailscrub-app" target="_blank">Code source</a>
                     <span>·</span>
-                    <a href="/terms.html">Conditions d'Utilisation</a>
+                    <a href="/terms.html">Conditions</a>
                     <span>·</span>
                     <a href="/privacy.html">Confidentialité</a>
                 </div>
-                <p class="copyright">© 2026 MailScrub. Fait avec ❤️ pour un web plus propre.</p>
+                <p class="copyright">© 2026 MailScrub · Fait par Noureddine H.</p>
             </div>
         </footer>
     </section>

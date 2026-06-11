@@ -21,12 +21,12 @@ const $loaderStatus = document.getElementById("loader-status");
 
 // ── Theme Management ──────────────────────────────────────
 function initTheme() {
-    const savedTheme = localStorage.getItem('mailscrub_theme') || 'dark';
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-theme');
+    const savedTheme = localStorage.getItem('mailscrub_theme') || 'light';
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
         updateThemeIcons('☀️');
     } else {
-        document.body.classList.remove('light-theme');
+        document.body.classList.remove('dark-theme');
         updateThemeIcons('🌙');
     }
 }
@@ -39,15 +39,13 @@ function updateThemeIcons(icon) {
 }
 
 function toggleTheme() {
-    const isLight = document.body.classList.toggle('light-theme');
-    const newTheme = isLight ? 'light' : 'dark';
+    const isDark = document.body.classList.toggle('dark-theme');
+    const newTheme = isDark ? 'dark' : 'light';
     localStorage.setItem('mailscrub_theme', newTheme);
-    updateThemeIcons(isLight ? '☀️' : '🌙');
+    updateThemeIcons(isDark ? '☀️' : '🌙');
 
-    // Update Chart.js global text colors if needed
     if (typeof Chart !== 'undefined') {
-        Chart.defaults.color = isLight ? '#475569' : '#8b8fa8';
-        // Trigger a re-render by calling renderDashboard if data exists
+        Chart.defaults.color = isDark ? '#A89F94' : '#5C574F';
         if (_analysisData && !$dashboard.classList.contains('hidden')) {
             renderDashboard(_analysisData);
         }
