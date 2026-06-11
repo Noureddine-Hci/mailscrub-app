@@ -1,22 +1,26 @@
 # 🤝 Passation de session — MailScrub.app
 
 > **Pour reprendre :** nouvelle session dans ce dossier → « **Reprends MailScrub, lis `SESSION-HANDOFF.md`** ».
-> Dernière mise à jour : **2026-06-11** (session Chantier B — refonte UI dé-IA).
+> Dernière mise à jour : **2026-06-11** (session déploiement public + fixes OAuth/UI).
 
 ---
 
 ## ⚡ TL;DR
 
 - **Tout est sur `main`** (à jour, poussé sur `origin`, **13 tests pytest verts**). Une seule branche, workflow **GitHub Flow**.
-- **Chantier A — Déploiement Azure ✅ FAIT** : app live et **branchée sur le domaine custom**.
-  - 🌐 **URL publique : https://www.mailscrub.app** (TLS Azure managé actif, vérifié dans le navigateur).
-  - URL technique Azure (fallback) : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
-  - Image : `ghcr.io/noureddine-hci/mailscrub:latest` · Login OAuth testé et fonctionnel.
-- **Chantier B — Dé-« IA-iser » le produit ✅ FAIT** : refonte UI/copy mergée dans `main` (commit `587d0b9`).
-- **Prochaine action n°1 :** redéploiement Azure (docker build + push + `az containerapp update`) pour que
-  https://www.mailscrub.app reflète la nouvelle UI.
-- ⚠️ **2 petits restes DNS** : (1) nettoyer 4 vieux records `A` chez Netim ; (2) le domaine **apex** `mailscrub.app`
-  (sans `www`) n'est pas branché — voir « Domaine custom » plus bas.
+- **Chantier A — Déploiement Azure ✅** : live sur https://www.mailscrub.app
+- **Chantier B — Refonte UI dé-IA ✅** : mergé, déployé, visible sur le site.
+- **OAuth public ✅** : app publiée (Test → Production dans Google Cloud Console).
+  Tout le monde peut se connecter — avertissement "non vérifié" franchissable.
+- **PKCE fix ✅** : `requests-oauthlib 2.x` activait PKCE automatiquement mais le
+  `code_verifier` était perdu entre login et callback. Fix : PKCE géré explicitement
+  dans `auth.py` (`_pkce_pair()` + session). Commits `6973806` + `b3840df`.
+- **Theme toggle fix ✅** : le toggle ne ré-anime plus les compteurs du dashboard.
+  Commit `1395573`.
+- **Prochaine priorité :** backlog technique (429 scan silence, catégorisation transac vs marketing)
+  ou vérification Google OAuth (CASA Tier 2, ~$75–200) pour supprimer l'avertissement.
+- ⚠️ **2 petits restes DNS** : (1) nettoyer 4 vieux records `A` chez Netim ; (2) apex
+  `mailscrub.app` (sans `www`) non branché — voir « Domaine custom » plus bas.
 
 ---
 
@@ -76,6 +80,18 @@
   chez Netim. Non bloquants mais sales.
 
 **Workflow de redéploiement :** voir `.agent/workflows/deploy.md`
+
+### Fixes session 2026-06-11 ✅
+
+- **OAuth public** : Google Cloud Console → Audience → "Publier l'application" (Test → Production).
+  Redirect URI `https://www.mailscrub.app/auth/callback` + origine `https://www.mailscrub.app` ajoutées.
+- **PKCE fix** (`backend/routers/auth.py`) : `requests-oauthlib 2.0.0` génère automatiquement un
+  `code_challenge` dans `authorization_url()`, mais le `code_verifier` était perdu lors de la
+  recréation du `Flow` dans le callback → `(invalid_grant) Missing code verifier`.
+  Solution : fonction `_pkce_pair()` qui génère le couple verifier/challenge, stocke le verifier
+  en session au login, le passe à `fetch_token()` dans le callback. Auto-PKCE de la lib désactivé.
+- **Theme toggle** (`frontend/js/app.js`) : `toggleTheme()` appelait `renderDashboard()` ce qui
+  ré-animait tous les compteurs. Remplacé par `Chart.getChart() + chart.update('none')`.
 
 ### Chantier B — Rendre le produit « humain » (moins « fait par IA ») ✅ TERMINÉ
 
