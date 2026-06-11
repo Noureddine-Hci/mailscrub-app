@@ -6,7 +6,11 @@ Routes d'authentification OAuth 2.0 avec Google.
 Flux : /auth/login → Google → /auth/callback → session
 """
 
+import base64
+import hashlib
+import json
 import os
+import secrets
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -14,10 +18,6 @@ from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# ── OAuth Config ──────────────────────────────────────────────
-import json
-import base64
 
 SCOPES = [
     "openid",
@@ -54,6 +54,14 @@ def _get_redirect_uri(request: Request) -> str:
     return url
 
 
+def _pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge_S256) for PKCE."""
+    verifier = secrets.token_urlsafe(96)
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return verifier, challenge
+
+
 def _get_flow(redirect_uri: str) -> Flow:
     """Create a Google OAuth flow from env vars."""
     client_config = {
@@ -67,6 +75,9 @@ def _get_flow(redirect_uri: str) -> Flow:
     }
     flow = Flow.from_client_config(client_config, scopes=SCOPES)
     flow.redirect_uri = redirect_uri
+    # Disable auto-PKCE from requests-oauthlib 2.x so we control it ourselves
+    if hasattr(flow.oauth2session, "code_challenge_method"):
+        flow.oauth2session.code_challenge_method = None
     return flow
 
 
@@ -81,20 +92,18 @@ async def login(request: Request):
     redirect_uri = _get_redirect_uri(request)
 
     flow = _get_flow(redirect_uri)
+    code_verifier, code_challenge = _pkce_pair()
+
     authorization_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="select_account consent",
+        code_challenge=code_challenge,
+        code_challenge_method="S256",
     )
 
-    # Store state in session for CSRF protection
     request.session["oauth_state"] = state
-
-    # requests-oauthlib 2.x auto-generates a PKCE code_verifier — preserve it
-    # so the callback can pass it to fetch_token on the new Flow object.
-    cv = getattr(flow.oauth2session, "code_verifier", None)
-    if cv:
-        request.session["oauth_code_verifier"] = cv
+    request.session["oauth_code_verifier"] = code_verifier
 
     return RedirectResponse(authorization_url)
 
@@ -120,11 +129,9 @@ async def callback(request: Request, code: str = "", state: str = ""):
     # Relax scope enforcement: prevents crash if Google returns different scopes
     os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
-    # Retrieve PKCE code_verifier stored at login (requests-oauthlib 2.x)
     code_verifier = request.session.pop("oauth_code_verifier", None)
 
     try:
-        # Exchange the authorization code for credentials
         flow.fetch_token(code=code, code_verifier=code_verifier)
     except Exception as e:
         print(f"[ERROR] OAuth fetch_token failed: {e}")
