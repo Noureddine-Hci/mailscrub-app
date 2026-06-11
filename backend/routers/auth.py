@@ -90,6 +90,12 @@ async def login(request: Request):
     # Store state in session for CSRF protection
     request.session["oauth_state"] = state
 
+    # requests-oauthlib 2.x auto-generates a PKCE code_verifier — preserve it
+    # so the callback can pass it to fetch_token on the new Flow object.
+    cv = getattr(flow.oauth2session, "code_verifier", None)
+    if cv:
+        request.session["oauth_code_verifier"] = cv
+
     return RedirectResponse(authorization_url)
 
 
@@ -114,9 +120,12 @@ async def callback(request: Request, code: str = "", state: str = ""):
     # Relax scope enforcement: prevents crash if Google returns different scopes
     os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
+    # Retrieve PKCE code_verifier stored at login (requests-oauthlib 2.x)
+    code_verifier = request.session.pop("oauth_code_verifier", None)
+
     try:
         # Exchange the authorization code for credentials
-        flow.fetch_token(code=code)
+        flow.fetch_token(code=code, code_verifier=code_verifier)
     except Exception as e:
         print(f"[ERROR] OAuth fetch_token failed: {e}")
         return RedirectResponse("/?error=oauth_failed")
