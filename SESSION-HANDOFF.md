@@ -1,7 +1,7 @@
 # 🤝 Passation de session — MailScrub.app
 
 > **Pour reprendre :** nouvelle session dans ce dossier → « **Reprends MailScrub, lis `SESSION-HANDOFF.md`** ».
-> Dernière mise à jour : **2026-06-10** (session déploiement Azure + domaine custom).
+> Dernière mise à jour : **2026-06-11** (session Chantier B — refonte UI dé-IA).
 
 ---
 
@@ -12,9 +12,10 @@
   - 🌐 **URL publique : https://www.mailscrub.app** (TLS Azure managé actif, vérifié dans le navigateur).
   - URL technique Azure (fallback) : https://mailscrub.gentlemushroom-a6aae85d.swedencentral.azurecontainerapps.io
   - Image : `ghcr.io/noureddine-hci/mailscrub:latest` · Login OAuth testé et fonctionnel.
-- **Chantier B — Dé-« IA-iser » le produit** : prochaine priorité.
-- **Prochaine action n°1 : Chantier B** (refonte UI/copy — voir plus bas).
-- ⚠️ **2 petits restes** : (1) nettoyer 4 vieux records DNS `A` chez Netim ; (2) le domaine **apex** `mailscrub.app`
+- **Chantier B — Dé-« IA-iser » le produit ✅ FAIT** : refonte UI/copy mergée dans `main` (commit `587d0b9`).
+- **Prochaine action n°1 :** redéploiement Azure (docker build + push + `az containerapp update`) pour que
+  https://www.mailscrub.app reflète la nouvelle UI.
+- ⚠️ **2 petits restes DNS** : (1) nettoyer 4 vieux records `A` chez Netim ; (2) le domaine **apex** `mailscrub.app`
   (sans `www`) n'est pas branché — voir « Domaine custom » plus bas.
 
 ---
@@ -76,23 +77,25 @@
 
 **Workflow de redéploiement :** voir `.agent/workflows/deploy.md`
 
-### Chantier B — Rendre le produit « humain » (moins « fait par IA »)
+### Chantier B — Rendre le produit « humain » (moins « fait par IA ») ✅ TERMINÉ
 
-Objectif : casser l'impression de template généré par IA (mêmes emojis, même présentation, même esthétique).
+Mergé dans `main` le 2026-06-11. Commits : `99a4f6d` (refonte initiale) + `2deef25` (polish).
 
-**Tells à corriger** (MailScrub les coche presque tous aujourd'hui) : emojis dans titres/puces ; dégradé violet→cyan +
-glassmorphism par défaut ; structure prévisible (badge « 100% Gratuit · Sans inscription · Sécurisé », 3 cartes de
-features, FAQ, footer) ; copy cliché (« Ultra Rapide », « Privacy First », « en 2 minutes chrono »).
+**Ce qui a été fait :**
+- Palette crème `#F7F3EC` / vert pin `#1F7A5A` / terre `#C75D3A` — zéro glassmorphism, zéro gradient décoratif
+- Typo : Fraunces (titres) + Hanken Grotesk (corps) + ui-monospace (chiffres)
+- Light-first par défaut (`body.dark-theme` optionnel, JS inversé)
+- Landing : eyebrow "Par un développeur solo", trust grid 6 items SVG, note créateur anonymisée
+- Dashboard : emojis → SVGs inline, titres cards sans emoji, loading bar vert pin
+- `--accent-blue` aliasé → `--accent-pine` (compat dashboard sans toucher le JS)
+- Validé via snapshot preview (0 erreur console)
 
-**Approche — éditorial + identité AVANT le code** (sinon on remplace un template par un autre) :
-1. Définir une **voix de marque** (ton assumé) et une **identité visuelle** distincte : palette ≠ indigo→cyan,
-   typo assumée, asymétrie, **vraies icônes SVG** au lieu d'emojis.
-2. Réécrire le **copy en concret** (chiffres/exemples réels, ex. « 173 expéditeurs, dont 41 jamais ouverts ») au lieu de superlatifs.
-3. **Casser le rythme template** (pas toujours 3 cartes) + **touches humaines** (note du créateur, micro-copie à caractère).
-- La skill `ui-ux-pro-max` peut aider, mais en s'éloignant **explicitement** des défauts.
+**Reste optionnel (non bloquant) :**
+- Citation créateur : ton jugé "pas ultra authentique" — à retravailler si souhaité
+- Boutons modal smart-select (⏳ 📧 💸 injectés par JS) encore en emoji
 
 ### Ordre recommandé
-**A (déployer) puis B (refonte)** — les deux chantiers sont indépendants.
+**A ✅ → B ✅ → redéploiement Azure → backlog technique**
 
 ### Backlog technique (après le déploiement)
 - **Fiabilité scan — 429** : le scan génère beaucoup de « Too many concurrent requests » et le batch `messages.get`
