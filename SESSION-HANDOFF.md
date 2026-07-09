@@ -1,13 +1,16 @@
 # 🤝 Passation de session — MailScrub.app
 
 > **Pour reprendre :** nouvelle session dans ce dossier → « **Reprends MailScrub, lis `SESSION-HANDOFF.md`** ».
-> Dernière mise à jour : **2026-06-11** (session déploiement public + fixes OAuth/UI).
+> Dernière mise à jour : **2026-07-09** (session multi-provider Google/Outlook/IMAP-POP, branche `badr`).
 
 ---
 
 ## ⚡ TL;DR
 
-- **Tout est sur `main`** (à jour, poussé sur `origin`, **13 tests pytest verts**). Une seule branche, workflow **GitHub Flow**.
+- **`main`** : à jour, poussé sur `origin`, **13 tests pytest verts**, seul Gmail en prod.
+- 🚧 **Branche `badr`** : chantier **multi-provider** (Google + Outlook + IMAP/POP) en cours, **poussée sur
+  `origin/badr` mais PAS fusionnée dans `main`** — voir section dédiée ci-dessous. **44 tests pytest verts**
+  sur cette branche.
 - **Chantier A — Déploiement Azure ✅** : live sur https://www.mailscrub.app
 - **Chantier B — Refonte UI dé-IA ✅** : mergé, déployé, visible sur le site.
 - **OAuth public ✅** : app publiée (Test → Production dans Google Cloud Console).
@@ -21,6 +24,51 @@
   ou vérification Google OAuth (CASA Tier 2, ~$75–200) pour supprimer l'avertissement.
 - ⚠️ **2 petits restes DNS** : (1) nettoyer 4 vieux records `A` chez Netim ; (2) apex
   `mailscrub.app` (sans `www`) non branché — voir « Domaine custom » plus bas.
+
+---
+
+## 🚧 EN COURS — Multi-provider (branche `badr`, PAS encore sur `main`)
+
+> Demande du 2026-07-09 : proposer 3 façons de se connecter (Google / Outlook /
+> IMAP-POP) au lieu de Gmail seul. Plan complet : `~/.claude/plans/steady-singing-bubble.md`.
+
+**Livré en 3 phases séquentielles, toutes testées (44 tests pytest, dont 31 nouveaux) :**
+
+1. **Fondations** — nouvelle interface `backend/src/providers/base.py`
+   (`MailProviderClient`, `MessageSummary`). Gmail migré dessus **sans changement de
+   comportement** (`google_provider.py`). `analyzer.py` devient un driver générique :
+   l'agrégation par expéditeur est écrite une seule fois, partagée par tous les
+   providers. Sélecteur à 3 boutons sur la landing. Code mort supprimé
+   (`backend/src/core/interfaces.py`, `src/providers/gmail_connector.py` — vérifié
+   sans aucun import ni livraison).
+2. **Outlook/Microsoft 365** — OAuth via `msal` (PKCE natif, pas besoin du
+   contournement manuel fait pour Google), lecture/suppression/désabonnement via
+   Microsoft Graph (`microsoft_provider.py`). Vérifié en réel : le bouton génère une
+   requête d'autorisation correcte vers `login.microsoftonline.com` (bon `client_id`,
+   bon `redirect_uri` — pas de collision avec le callback Google —, bons scopes, PKCE).
+3. **IMAP/POP** — `imaplib`/`poplib`/`smtplib` (stdlib, aucune nouvelle dépendance).
+   Mot de passe **chiffré (Fernet, clé dérivée de `SECRET_KEY`)** dans le cookie de
+   session — dérogation documentée et ciblée à la règle "aucun secret dans le cookie"
+   (voir `backend/src/security/crypto.py`). Modale de connexion accessible,
+   avertissement de suppression renforcé et spécifique pour POP3 (pas de corbeille =
+   définitif, décision produit actée — pas de mode lecture seule). Testé en réel
+   contre un vrai serveur Gmail IMAP (identifiants volontairement faux) : rejet
+   correctement classifié et affiché côté UI.
+
+**Décisions actées (détail dans le plan) :**
+- Mot de passe IMAP/POP chiffré dans le cookie (pas juste signé comme le reste) — seul champ concerné.
+- Suppression POP3 autorisée malgré l'absence de corbeille, avec avertissement fort (pas de lecture seule).
+- `provider` prend 4 valeurs distinctes (`"google"|"microsoft"|"imap"|"pop3"`), pas "imap" + un sous-champ protocole.
+
+**⚠️ Pas encore vérifié en réel — bloquant avant fusion dans `main` :**
+- **Google** : routes `/auth/login`/`/auth/callback` inchangées, mais pas re-cliqué en réel depuis le refactor.
+- **Outlook** : nécessite une App Registration Azure (`MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`
+  dans `backend/.env`, voir `.env.example`) — jamais testé en connexion réelle.
+- **IMAP/POP** : nécessite un vrai compte mail pour valider scan + suppression + désabonnement complets.
+- Deux zones d'incertitude documentées dans le code (non bloquantes, à ajuster si un test réel les contredit) :
+  `internetMessageHeaders` sur l'endpoint de liste Graph (comportement optimiste implémenté, repli en 2 phases
+  prévu mais pas codé) ; Graph n'expose pas de taille en octets par mail → suggestions "gros fichiers"
+  inactives pour Outlook.
 
 ---
 
@@ -120,7 +168,8 @@ Mergé dans `main` le 2026-06-11. Commits : `99a4f6d` (refonte initiale) + `2dee
   « Newsletter » → distinguer marketing vs transactionnel.
 - **Clarté UI** : compteurs = « sur les N mails analysés » (fenêtre scannée, pas total à vie).
 - 7 désabos manuels restants (Azure, Microsoft, G2A, Google[marketing], CAPCOM, AMD, Bulk™) ; 53 expéditeurs unitaires non traités.
-- **Phase 2** (sécurité avancée / rapports / multi-provider) puis **Phase 3** (Stripe).
+- **Multi-provider (Google/Outlook/IMAP-POP)** : en cours sur `badr`, voir section dédiée en haut de ce fichier.
+- **Phase 2** (sécurité avancée / rapports) puis **Phase 3** (Stripe) — après fusion du multi-provider.
 
 ---
 
@@ -128,7 +177,7 @@ Mergé dans `main` le 2026-06-11. Commits : `99a4f6d` (refonte initiale) + `2dee
 
 ```bash
 python -m uvicorn backend.main:app --reload --port 8000   # -> http://localhost:8000
-python -m pytest                                          # 13 tests (sous Windows : .venv/Scripts/python.exe -m pytest)
+python -m pytest                                          # 13 tests sur main, 44 sur badr (sous Windows : .venv/Scripts/python.exe -m pytest)
 ```
 
 - **Git/GitHub** : git passe par le token `gh` (`gh auth setup-git`, compte `Noureddine-Hci`) → pas de popup au push.
