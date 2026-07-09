@@ -6,7 +6,7 @@ Utilise un faux objet 'request' exposant .execute() (pas un mock de l'API).
 import pytest
 from googleapiclient.errors import HttpError
 
-from backend.src.services import analyzer
+from backend.src.providers import google_provider
 
 
 class _FakeResp(dict):
@@ -35,15 +35,15 @@ class _FakeRequest:
 
 
 def test_retry_puis_succes(monkeypatch):
-    monkeypatch.setattr(analyzer.time, "sleep", lambda *_: None)  # pas d'attente réelle
+    monkeypatch.setattr(google_provider.time, "sleep", lambda *_: None)  # pas d'attente réelle
     req = _FakeRequest(fail_times=2, status=503)
-    assert analyzer._execute_with_retry(req, max_attempts=4) == {"ok": True}
+    assert google_provider._execute_with_retry(req, max_attempts=4) == {"ok": True}
     assert req.calls == 3
 
 
 def test_erreur_non_retryable_remonte(monkeypatch):
-    monkeypatch.setattr(analyzer.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(google_provider.time, "sleep", lambda *_: None)
     req = _FakeRequest(fail_times=1, status=404)
     with pytest.raises(HttpError):
-        analyzer._execute_with_retry(req, max_attempts=4)
+        google_provider._execute_with_retry(req, max_attempts=4)
     assert req.calls == 1

@@ -65,6 +65,14 @@ initTheme();
 // ── API Base URL ──────────────────────────────────────────
 const API_BASE = window.location.origin;
 
+// ── Provider labels (topbar badge once un scan réel est rendu) ─
+const PROVIDER_LABELS = {
+    google: "📧 Données Gmail",
+    microsoft: "📧 Données Outlook",
+    imap: "📧 Données IMAP",
+    pop3: "📧 Données POP3",
+};
+
 // ── Global analysis data (used by action buttons) ─────────
 let _analysisData = null;
 let _currentFilter = null; // 'old', 'heavy', 'newsletter' or null
@@ -120,28 +128,157 @@ function resetToLanding() {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Redirect the user to the OAuth login page.
+ * Chemins de login OAuth par provider. Google garde son chemin historique
+ * /auth/login (pas /auth/google/login) : renommer casserait la redirect_uri
+ * déjà whitelistée côté Google Cloud Console en prod.
  */
+const OAUTH_LOGIN_PATHS = {
+    google: "/auth/login",
+    microsoft: "/auth/microsoft/login",
+};
+
 /**
- * Redirect the user to the OAuth login page.
+ * Redirige l'utilisateur vers l'écran de consentement OAuth du provider donné.
  */
-function startLogin() {
-    // Save scan limit preference
+function startOAuthLogin(provider, btnId) {
     // Save scan limit preference (Radio Button version)
     const checkedLimit = document.querySelector('input[name="scan-limit"]:checked');
     const limitValue = checkedLimit ? checkedLimit.value : "1000";
 
     localStorage.setItem("mailscrub_scan_limit", limitValue);
 
-
     // Initial feedback on button
-    const btn = document.getElementById("btn-connect");
+    const btn = document.getElementById(btnId);
     if (btn) {
         btn.innerHTML = "🔄 Connexion...";
         btn.disabled = true;
     }
 
-    window.location.href = `${API_BASE}/auth/login`;
+    window.location.href = `${API_BASE}${OAUTH_LOGIN_PATHS[provider]}`;
+}
+
+function startLogin() {
+    startOAuthLogin("google", "btn-connect-google");
+}
+
+function startMicrosoftLogin() {
+    startOAuthLogin("microsoft", "btn-connect-microsoft");
+}
+
+// ── IMAP / POP (identifiants directs, pas d'OAuth) ─────────
+
+let _mailHostPresets = null;
+
+async function _loadMailHostPresets() {
+    if (_mailHostPresets) return _mailHostPresets;
+    try {
+        const res = await fetch(`${API_BASE}/auth/imap/presets`);
+        _mailHostPresets = await res.json();
+    } catch (e) {
+        _mailHostPresets = {};
+    }
+    return _mailHostPresets;
+}
+
+/**
+ * Préremplit (en placeholder, pas en valeur — l'utilisateur reste libre de
+ * saisir autre chose) les champs avancés hôte/port si le domaine de l'email
+ * est reconnu. Purement indicatif : le backend refait la même résolution de
+ * son côté si les champs restent vides, donc rien ne dépend de ce JS pour
+ * que la connexion fonctionne réellement.
+ */
+async function _autofillImapHosts() {
+    const $email = document.getElementById("imap-email");
+    if (!$email || !$email.value.includes("@")) return;
+    const domain = $email.value.split("@")[1].trim().toLowerCase();
+
+    const presets = await _loadMailHostPresets();
+    const preset = presets[domain];
+    if (!preset) return;
+
+    const protocol = document.getElementById("imap-protocol").value;
+    const $host = document.getElementById("imap-host");
+    const $port = document.getElementById("imap-port");
+    const $smtpHost = document.getElementById("imap-smtp-host");
+    const $smtpPort = document.getElementById("imap-smtp-port");
+
+    const host = protocol === "imap" ? preset.imap_host : preset.pop_host;
+    const port = protocol === "imap" ? preset.imap_port : preset.pop_port;
+
+    if ($host) $host.placeholder = host || "non supporté pour ce domaine";
+    if ($port) $port.placeholder = port ? String(port) : "";
+    if ($smtpHost) $smtpHost.placeholder = preset.smtp_host || "";
+    if ($smtpPort) $smtpPort.placeholder = preset.smtp_port ? String(preset.smtp_port) : "";
+}
+
+function openImapModal() {
+    const overlay = document.getElementById("modal-imap-connect");
+    const $error = document.getElementById("imap-connect-error");
+    if ($error) {
+        $error.classList.add("hidden");
+        $error.textContent = "";
+    }
+    openAccessibleModal(overlay);
+}
+
+function closeImapModal() {
+    closeAccessibleModal(document.getElementById("modal-imap-connect"));
+}
+
+async function submitImapConnect(event) {
+    if (event) event.preventDefault();
+
+    const email = document.getElementById("imap-email").value.trim();
+    const password = document.getElementById("imap-password").value;
+    const protocol = document.getElementById("imap-protocol").value;
+    const host = document.getElementById("imap-host").value.trim();
+    const port = document.getElementById("imap-port").value.trim();
+    const smtpHost = document.getElementById("imap-smtp-host").value.trim();
+    const smtpPort = document.getElementById("imap-smtp-port").value.trim();
+
+    const $error = document.getElementById("imap-connect-error");
+    const $submit = document.getElementById("imap-connect-submit");
+
+    $error.classList.add("hidden");
+    $error.textContent = "";
+    $submit.disabled = true;
+    $submit.textContent = "🔄 Connexion...";
+
+    try {
+        const body = { email, password, protocol };
+        if (host) body.host = host;
+        if (port) body.port = parseInt(port, 10);
+        if (smtpHost) body.smtp_host = smtpHost;
+        if (smtpPort) body.smtp_port = parseInt(smtpPort, 10);
+
+        const checkedLimit = document.querySelector('input[name="scan-limit"]:checked');
+        if (checkedLimit) {
+            localStorage.setItem("mailscrub_scan_limit", checkedLimit.value);
+        }
+
+        const res = await fetch(`${API_BASE}/auth/imap/connect`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+            $error.textContent = data.message || "Connexion impossible.";
+            $error.classList.remove("hidden");
+            return;
+        }
+
+        closeImapModal();
+        startAnalysis(true);
+    } catch (e) {
+        console.error("[IMAP] Connexion échouée", e);
+        $error.textContent = "Erreur réseau. Réessayez.";
+        $error.classList.remove("hidden");
+    } finally {
+        $submit.disabled = false;
+        $submit.textContent = "Se connecter";
+    }
 }
 
 /**
@@ -177,8 +314,8 @@ async function checkAuthOnLoad() {
             const res = await fetch(`${API_BASE}/auth/status`);
             if (res.ok) {
                 const data = await res.json();
-                if (data.authenticated && data.mode === 'gmail') {
-                    console.log("[Auth] Session active.");
+                if (data.authenticated) {
+                    console.log(`[Auth] Session active (${data.provider}).`);
                     isAuthenticated = true;
                     userProfile = data.profile;
                 }
@@ -188,10 +325,14 @@ async function checkAuthOnLoad() {
         }
     }
 
-    // Configure the main button based on auth status
+    // Logged out: montre le sélecteur à 3 providers. Logged in: repasse sur un
+    // seul CTA "relancer un scan" (#btn-connect, déjà utilisé avant le multi-provider).
+    const $providerPicker = document.getElementById("provider-picker");
     const btnConnect = document.getElementById("btn-connect");
     if (btnConnect) {
         if (isAuthenticated) {
+            if ($providerPicker) $providerPicker.classList.add("hidden");
+            btnConnect.classList.remove("hidden");
             btnConnect.onclick = () => {
                 const checkedLimit = document.querySelector('input[name="scan-limit"]:checked');
                 if (checkedLimit) {
@@ -201,7 +342,8 @@ async function checkAuthOnLoad() {
             };
         } else {
             // Default logged-out state
-            btnConnect.onclick = startLogin;
+            if ($providerPicker) $providerPicker.classList.remove("hidden");
+            btnConnect.classList.add("hidden");
         }
     }
 
@@ -353,7 +495,7 @@ async function startAnalysis(isReal = false) {
 
                         try {
                             console.log("[App] Rendering dashboard...");
-                            renderDashboard(event.data, event.data.mode === "gmail");
+                            renderDashboard(event.data, event.data.provider !== "demo");
                             console.log("[App] Dashboard rendered successfully.");
                         } catch (renderErr) {
                             console.error("[App] Render Error:", renderErr);
@@ -395,10 +537,12 @@ function renderDashboard(data, isReal = false) {
     animateCounter("total-emails", data.total_emails, 1500);
     animateCounter("unique-senders", data.stats.unique_senders, 1200);
 
-    // Show mode badge
+    // Show provider badge
     const $userEmail = document.getElementById("user-email");
     if ($userEmail) {
-        $userEmail.textContent = isReal ? "📧 Données Gmail" : "🧪 Mode Démo";
+        $userEmail.textContent = isReal
+            ? (PROVIDER_LABELS[data.provider] || "📧 Données réelles")
+            : "🧪 Mode Démo";
     }
 
     // Health Score
@@ -805,7 +949,7 @@ function renderSenders(senders, startIndex = 0) {
 
     // Dynamic max for visual bars relative to current view
     const maxCount = Math.max(...senders.map(s => s.count), 1);
-    const isReal = _analysisData && _analysisData.mode === "gmail";
+    const isReal = _analysisData && _analysisData.provider !== "demo";
 
     senders.forEach((sender, i) => {
         const rank = startIndex + i + 1;
@@ -1146,6 +1290,42 @@ function showConfirm({ title = 'Confirmation', message = '', confirmLabel = 'Con
 // ═══════════════════════════════════════════════════════════
 
 /**
+ * Message + mode de suppression adaptés au provider connecté. POP3 n'a pas
+ * de corbeille (DELE+QUIT est définitif) — décision produit actée : on
+ * autorise quand même la suppression, avec un avertissement fort dédié,
+ * plutôt que de désactiver l'action pour ce provider.
+ */
+function _deleteConfirmOptions(count, label, sizeBytes) {
+    const isPop3 = _analysisData && _analysisData.provider === "pop3";
+
+    if (isPop3) {
+        return {
+            mode: "delete",
+            confirm: {
+                title: 'Supprimer définitivement',
+                message:
+                    `Supprimer DÉFINITIVEMENT ${count} mail(s) de ${label} ?\n\n` +
+                    `⚠️ POP3 ne propose pas de corbeille : cette suppression est ` +
+                    `irréversible, sans possibilité de restauration.`,
+                confirmLabel: '🗑️ Supprimer définitivement',
+            },
+        };
+    }
+
+    return {
+        mode: "trash",
+        confirm: {
+            title: 'Mettre à la corbeille',
+            message:
+                `Mettre à la corbeille ${count} mail(s) de ${label} ?\n\n` +
+                (sizeBytes ? `Espace récupéré : ~${formatSize(sizeBytes)}\n` : '') +
+                `Les mails resteront dans la corbeille 30 jours.`,
+            confirmLabel: '🗑️ Mettre à la corbeille',
+        },
+    };
+}
+
+/**
  * Delete all emails from a specific sender (trash mode by default).
  */
 async function deleteSenderEmails(sender, rowIndex) {
@@ -1155,14 +1335,8 @@ async function deleteSenderEmails(sender, rowIndex) {
         return;
     }
 
-    const confirmed = await showConfirm({
-        title: 'Mettre à la corbeille',
-        message:
-            `Mettre à la corbeille ${count} mail(s) de ${sender.name || sender.email} ?\n\n` +
-            `Espace récupéré : ~${formatSize(sender.size_bytes || 0)}\n` +
-            `Les mails resteront dans la corbeille 30 jours.`,
-        confirmLabel: '🗑️ Mettre à la corbeille',
-    });
+    const delOpts = _deleteConfirmOptions(count, sender.name || sender.email, sender.size_bytes);
+    const confirmed = await showConfirm(delOpts.confirm);
     if (!confirmed) return;
 
     const $row = document.getElementById(`sender-row-${rowIndex}`);
@@ -1178,7 +1352,7 @@ async function deleteSenderEmails(sender, rowIndex) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message_ids: sender.message_ids,
-                mode: "trash",
+                mode: delOpts.mode,
             }),
         });
 
@@ -1315,7 +1489,7 @@ function renderSpaceSummary(data) {
     const $container = document.getElementById("space-summary");
     if (!$container) return;
 
-    if (data.mode !== "gmail") {
+    if (data.provider === "demo") {
         $container.style.display = "none";
         return;
     }
@@ -1577,11 +1751,8 @@ async function deleteFromModal() {
     const index = _currentSenderIndex;
     const $btn = document.getElementById('modal-btn-delete');
 
-    const ok = await showConfirm({
-        title: 'Tout supprimer',
-        message: `Confirmer la mise à la corbeille de ${sender.count} email(s) de cet expéditeur ?`,
-        confirmLabel: '🗑️ Tout supprimer',
-    });
+    const delOpts = _deleteConfirmOptions(sender.count, sender.name || sender.email, sender.size_bytes);
+    const ok = await showConfirm(delOpts.confirm);
     if (!ok) return;
 
     // Loading UI
@@ -1594,7 +1765,7 @@ async function deleteFromModal() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message_ids: sender.message_ids,
-                mode: "trash",
+                mode: delOpts.mode,
             }),
         });
 
@@ -1648,11 +1819,11 @@ async function deleteSelectedFromModal() {
     const messageIdsToDelete = checkedBoxes.map(cb => cb.value);
     const $btn = document.getElementById('modal-btn-delete-selected');
 
-    const ok = await showConfirm({
-        title: 'Supprimer la s\u00E9lection',
-        message: `Confirmer la mise \u00E0 la corbeille de ${messageIdsToDelete.length} email(s) s\u00E9lectionn\u00E9(s) ?`,
-        confirmLabel: '\uD83D\uDDD1\uFE0F Supprimer',
-    });
+    const delOpts = _deleteConfirmOptions(
+        messageIdsToDelete.length,
+        (_currentSender && (_currentSender.name || _currentSender.email)) || 'cet exp\u00E9diteur'
+    );
+    const ok = await showConfirm(delOpts.confirm);
     if (!ok) return;
 
     // Loading UI
@@ -1669,7 +1840,7 @@ async function deleteSelectedFromModal() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message_ids: messageIdsToDelete,
-                mode: "trash",
+                mode: delOpts.mode,
             }),
         });
 

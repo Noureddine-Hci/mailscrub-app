@@ -390,6 +390,30 @@ body {
     background: var(--bg-card-hover);
 }
 
+.btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-ghost:disabled:hover {
+    color: var(--text-secondary);
+    border-color: var(--border-card);
+    background: transparent;
+}
+
+.provider-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+}
+
+.provider-soon {
+    font-size: 0.78em;
+    opacity: 0.75;
+}
+
 .theme-btn {
     background: transparent;
     border: 1px solid transparent;
@@ -1279,6 +1303,67 @@ body {
 .modal-card-sm { max-width: 440px; }
 
 .confirm-message { color: var(--text-secondary); line-height: 1.55; white-space: pre-line; word-break: break-word; }
+
+
+/* ── Formulaire IMAP/POP ──────────────────────────────── */
+
+.form-field { margin-bottom: 16px; }
+
+.form-field label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.form-field input,
+.form-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+    outline: none;
+    border-color: var(--accent-pine);
+}
+
+.form-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+.form-error {
+    color: var(--accent-red);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.imap-advanced {
+    margin-top: 4px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+}
+
+.imap-advanced summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.imap-advanced[open] summary { margin-bottom: 12px; }
 
 
 /* ── Empty States ─────────────────────────────────────── */

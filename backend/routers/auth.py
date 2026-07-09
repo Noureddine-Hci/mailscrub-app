@@ -1,21 +1,35 @@
 """
 MailScrub.app — Auth Router
-Version: 1.0.0 (Official Release)
+Version: 1.1.0 (Multi-provider)
 
-Routes d'authentification OAuth 2.0 avec Google.
-Flux : /auth/login → Google → /auth/callback → session
+Routes d'authentification :
+    - Google    : /auth/login → Google → /auth/callback → session
+    - Microsoft : /auth/microsoft/login → Microsoft → /auth/microsoft/callback → session
+    - IMAP/POP  : POST /auth/imap/connect (pas de redirect OAuth — identifiants directs)
 """
 
 import base64
 import hashlib
+import imaplib
 import json
 import os
+import poplib
 import secrets
+import socket
+import ssl
+import time
 
+import requests
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from google_auth_oauthlib.flow import Flow
+
+from backend.src.providers.microsoft_provider import MICROSOFT_SCOPES, get_msal_app
+from backend.src.providers.imap_provider import ImapProviderClient
+from backend.src.providers.pop_provider import PopProviderClient
+from backend.src.providers.mail_host_presets import all_presets, get_preset
+from backend.src.security.crypto import encrypt_secret
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -26,6 +40,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify"
 ]
 
+GRAPH_TIMEOUT = 10
+
 # Allow HTTP only for local development
 if os.getenv("ENV") == "production":
     # Production → force HTTPS
@@ -35,19 +51,24 @@ else:
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 
-def _get_redirect_uri(request: Request) -> str:
+def _get_redirect_uri(request: Request, route_name: str = "callback") -> str:
     """
     Build the OAuth callback URI, forcing HTTPS in production.
     Azure ACA (like Cloud Run) sits behind a reverse proxy that terminates TLS,
     so request.url_for() may return http:// even though the public URL is https://.
+
+    `route_name` doit être le nom de fonction EXACT de la route callback visée
+    (request.url_for résout par nom, et renvoie la première route enregistrée
+    sous ce nom — d'où l'obligation d'un nom distinct par provider : "callback"
+    pour Google, "microsoft_callback" pour Microsoft).
     """
-    url = str(request.url_for("callback"))
+    url = str(request.url_for(route_name))
 
     # In production, force https (proxy terminates TLS)
     if os.getenv("ENV") == "production":
         url = url.replace("http://", "https://")
     else:
-        # Local dev: Force localhost to match Google Console allowlist
+        # Local dev: Force localhost to match Google/Microsoft console allowlist
         # even if accessed via 127.0.0.1
         url = url.replace("127.0.0.1", "localhost")
 
@@ -154,6 +175,7 @@ async def callback(request: Request, code: str = "", state: str = ""):
         "token_uri": credentials.token_uri,
         "scopes": list(credentials.scopes),
     }
+    request.session["provider"] = "google"
 
     # Decode id_token to get user profile
     if credentials.id_token:
@@ -179,20 +201,25 @@ async def callback(request: Request, code: str = "", state: str = ""):
 
 @router.get("/status")
 async def auth_status(request: Request):
-    """Vérifie si l'utilisateur est connecté (a des credentials en session) et renvoie son profil."""
+    """Vérifie si l'utilisateur est connecté et renvoie son provider + profil."""
     creds = request.session.get("credentials")
     profile = request.session.get("user_profile")
-    
-    if creds:
+
+    # Compat : une session créée avant l'introduction du champ "provider" a des
+    # credentials Google mais pas cette clé. Sans ce repli, ces utilisateurs déjà
+    # connectés seraient traités comme déconnectés dès ce déploiement.
+    provider = request.session.get("provider") or ("google" if creds else None)
+
+    if creds and provider:
         return {
             "authenticated": True,
-            "mode": "gmail",
-            "profile": profile
+            "provider": provider,
+            "profile": profile,
         }
     return {
         "authenticated": False,
-        "mode": "none",
-        "profile": None
+        "provider": None,
+        "profile": None,
     }
 
 
@@ -201,3 +228,205 @@ async def logout(request: Request):
     """Déconnecte l'utilisateur en supprimant la session."""
     request.session.clear()
     return RedirectResponse("/")
+
+
+# ── Microsoft / Outlook ──────────────────────────────────────
+#
+# Noms de fonctions volontairement distincts de login()/callback() : l'app
+# résout les redirect_uri OAuth via request.url_for(<nom de fonction>), qui
+# retourne la PREMIÈRE route enregistrée sous ce nom. Un callback Microsoft
+# nommé "callback" comme celui de Google résoudrait silencieusement vers
+# /auth/callback (Google) au lieu du sien.
+
+
+@router.get("/microsoft/login")
+async def microsoft_login(request: Request):
+    """Redirige l'utilisateur vers l'écran de consentement Microsoft."""
+    redirect_uri = _get_redirect_uri(request, "microsoft_callback")
+    msal_app = get_msal_app()
+
+    # initiate_auth_code_flow gère state + PKCE nativement (contrairement à
+    # Google où requests-oauthlib 2.x nous a forcés à un contournement manuel
+    # — voir _pkce_pair()). Le flow entier (state, code_verifier, ...) est
+    # stocké en session, aucun secret applicatif dedans (le client_secret
+    # n'est ré-injecté que côté serveur, dans _get_msal_app()).
+    flow = msal_app.initiate_auth_code_flow(
+        scopes=MICROSOFT_SCOPES,
+        redirect_uri=redirect_uri,
+    )
+    request.session["ms_oauth_flow"] = flow
+
+    return RedirectResponse(flow["auth_uri"])
+
+
+@router.get("/microsoft/callback")
+async def microsoft_callback(request: Request):
+    """
+    Callback OAuth Microsoft — reçoit le code, échange contre un token via MSAL,
+    et stocke les credentials dans la session.
+    """
+    flow = request.session.pop("ms_oauth_flow", None)
+    if not flow:
+        print("[WARN] Microsoft OAuth : flow manquant en session (CSRF potentiel ou session expirée).")
+        return RedirectResponse("/?error=invalid_state")
+
+    msal_app = get_msal_app()
+
+    try:
+        # acquire_token_by_auth_code_flow valide le state en interne (lève
+        # ValueError en cas de mismatch — protection CSRF déjà assurée par MSAL).
+        result = msal_app.acquire_token_by_auth_code_flow(flow, dict(request.query_params))
+    except ValueError as e:
+        print(f"[WARN] Microsoft OAuth state invalide : {e}")
+        return RedirectResponse("/?error=invalid_state")
+
+    if "error" in result:
+        print(f"[ERROR] Microsoft OAuth échoué : {result.get('error_description', result.get('error'))}")
+        return RedirectResponse("/?error=oauth_failed")
+
+    access_token = result.get("access_token")
+    if not access_token:
+        return RedirectResponse("/?error=oauth_failed")
+
+    # SÉCURITÉ : même principe que Google — cookie signé mais PAS chiffré, donc
+    # aucun secret applicatif (client_secret) stocké ici. access_token/refresh_token
+    # sont les credentials de l'UTILISATEUR (normal pour une session OAuth), pas
+    # un secret de l'application.
+    request.session["credentials"] = {
+        "access_token": access_token,
+        "refresh_token": result.get("refresh_token"),
+        "expires_at": int(time.time()) + int(result.get("expires_in", 3600)),
+    }
+    request.session["provider"] = "microsoft"
+
+    # Profil via Graph /me (best-effort, comme le décodage id_token pour Google)
+    try:
+        profile_resp = requests.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=GRAPH_TIMEOUT,
+        )
+        profile_resp.raise_for_status()
+        profile = profile_resp.json()
+        request.session["user_profile"] = {
+            "email": profile.get("mail") or profile.get("userPrincipalName"),
+            "name": profile.get("displayName"),
+            # Graph expose la photo via un appel binaire séparé (/me/photo/$value) ;
+            # pas de tentative pour l'instant, cohérent avec l'absence d'avatar IMAP/POP.
+            "picture": None,
+        }
+    except requests.RequestException as e:
+        print(f"[WARNING] Impossible de récupérer le profil Microsoft: {e}")
+        request.session["user_profile"] = {"email": None, "name": None, "picture": None}
+
+    return RedirectResponse("/?authenticated=true")
+
+
+# ── IMAP / POP ────────────────────────────────────────────────
+#
+# Pas d'OAuth : identifiants directs (email + mot de passe). "imap" et "pop3"
+# sont deux valeurs DISTINCTES de `provider` (pas "imap" + un sous-champ
+# protocole) — nécessaire côté frontend pour traiter différemment la
+# suppression POP3 (définitive, pas de corbeille) de celle d'IMAP.
+
+
+def _classify_imap_pop_error(e: Exception) -> str:
+    """Message utilisateur clair selon le type d'échec de connexion."""
+    if isinstance(e, (imaplib.IMAP4.error, poplib.error_proto)):
+        return "Identifiants refusés. Vérifiez l'adresse et le mot de passe (un mot de passe d'application est parfois requis)."
+    if isinstance(e, socket.gaierror):
+        return "Serveur introuvable. Vérifiez le nom d'hôte."
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "Le serveur ne répond pas (délai dépassé). Vérifiez l'hôte et le port."
+    if isinstance(e, ConnectionRefusedError):
+        return "Connexion refusée par le serveur. Vérifiez le port."
+    if isinstance(e, ssl.SSLError):
+        return "Erreur TLS/SSL lors de la connexion au serveur."
+    return "Impossible de se connecter à ce serveur mail."
+
+
+@router.post("/imap/connect")
+async def imap_connect(request: Request):
+    """
+    Connexion IMAP/POP par identifiants. Tente une connexion réelle
+    immédiatement (échec rapide, message clair) ; en cas de succès, chiffre
+    le mot de passe (security/crypto.py) et stocke la session.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": True, "message": "Corps de requête invalide."})
+
+    email_addr = (body.get("email") or "").strip()
+    password = body.get("password") or ""
+    protocol = (body.get("protocol") or "imap").lower()
+
+    if not email_addr or "@" not in email_addr:
+        return JSONResponse(status_code=400, content={"error": True, "message": "Adresse email invalide."})
+    if not password:
+        return JSONResponse(status_code=400, content={"error": True, "message": "Mot de passe manquant."})
+    if protocol not in ("imap", "pop3"):
+        return JSONResponse(status_code=400, content={"error": True, "message": "Protocole non supporté."})
+
+    preset = get_preset(email_addr) or {}
+
+    host = body.get("host") or preset.get("imap_host" if protocol == "imap" else "pop_host")
+    port = body.get("port") or preset.get("imap_port" if protocol == "imap" else "pop_port")
+    smtp_host = body.get("smtp_host") or preset.get("smtp_host")
+    smtp_port = body.get("smtp_port") or preset.get("smtp_port")
+
+    if not host or not port:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": True,
+                "message": "Serveur inconnu pour ce domaine — merci de préciser l'hôte et le port manuellement.",
+            },
+        )
+
+    try:
+        port = int(port)
+        smtp_port = int(smtp_port) if smtp_port else 0
+    except (TypeError, ValueError):
+        return JSONResponse(status_code=400, content={"error": True, "message": "Port invalide."})
+
+    ClientClass = ImapProviderClient if protocol == "imap" else PopProviderClient
+    client = ClientClass(host, port, email_addr, password, smtp_host or "", smtp_port)
+
+    try:
+        client.verify_connection()
+    except Exception as e:
+        # Ne JAMAIS logger le mot de passe : certaines exceptions imaplib/poplib
+        # peuvent inclure la commande complète (donc potentiellement les
+        # identifiants) dans leur message — on logue seulement le type
+        # d'exception, jamais `e`/`str(e)` brut.
+        print(f"[WARN] Connexion {protocol.upper()} échouée pour {email_addr} ({type(e).__name__})")
+        return JSONResponse(
+            status_code=400,
+            content={"error": True, "message": _classify_imap_pop_error(e)},
+        )
+
+    secret_key = os.getenv("SECRET_KEY") or "dev-secret-key"
+    request.session["credentials"] = {
+        "host": host,
+        "port": port,
+        "protocol": protocol,
+        "username": email_addr,
+        "password_enc": encrypt_secret(password, secret_key),
+        "smtp_host": smtp_host or "",
+        "smtp_port": smtp_port,
+    }
+    request.session["provider"] = protocol
+    request.session["user_profile"] = {
+        "email": email_addr,
+        "name": email_addr.split("@")[0],
+        "picture": None,
+    }
+
+    return {"ok": True}
+
+
+@router.get("/imap/presets")
+async def imap_presets():
+    """Expose la table hôtes IMAP/POP/SMTP pour préremplir le formulaire frontend."""
+    return all_presets()

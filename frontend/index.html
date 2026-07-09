@@ -60,7 +60,7 @@
             <div class="hero-content">
                 <p class="hero-eyebrow">Par un développeur solo · Open source · Gratuit</p>
                 <h1 class="hero-title">
-                    Votre boîte Gmail,<br>
+                    Votre boîte mail,<br>
                     <span class="hero-accent">enfin lisible.</span>
                 </h1>
                 <p class="hero-subtitle">
@@ -103,8 +103,19 @@
                             </span>
                         </label>
                     </div>
-                    <button id="btn-connect" class="btn-primary">
-                        Scanner ma boîte Gmail
+                    <div id="provider-picker" class="provider-picker">
+                        <button id="btn-connect-google" class="btn-primary" onclick="startLogin()">
+                            Continuer avec Google
+                        </button>
+                        <button id="btn-connect-microsoft" class="btn-ghost" onclick="startMicrosoftLogin()">
+                            Continuer avec Outlook
+                        </button>
+                        <button id="btn-connect-imap" class="btn-ghost" onclick="openImapModal()">
+                            IMAP / POP
+                        </button>
+                    </div>
+                    <button id="btn-connect" class="btn-primary hidden">
+                        Scanner ma boîte mail
                     </button>
                     <a href="#" onclick="startAnalysis(false); return false;" class="link-demo">
                         Voir un exemple sans connexion
@@ -245,7 +256,7 @@
 
             <div class="loader-text">
                 <p class="loader-title">Analyse en cours...</p>
-                <p class="loader-status" id="loader-status">Connexion à Gmail...</p>
+                <p class="loader-status" id="loader-status">Connexion...</p>
             </div>
         </div>
     </section>
@@ -522,6 +533,71 @@
             <div class="modal-footer">
                 <button class="btn-secondary" id="confirm-cancel">Annuler</button>
                 <button class="btn-danger" id="confirm-ok">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════ -->
+    <!-- CONNEXION IMAP / POP (identifiants directs, pas d'OAuth) -->
+    <!-- ════════════════════════════════════════════════════════ -->
+    <div id="modal-imap-connect" class="modal-overlay hidden">
+        <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-labelledby="imap-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="imap-modal-title">Connexion IMAP / POP</h3>
+                    <p class="modal-subtitle">Adresse et mot de passe de votre boîte mail</p>
+                </div>
+                <button class="btn-icon-close" onclick="closeImapModal()" aria-label="Fermer">×</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="imap-connect-form" onsubmit="submitImapConnect(event); return false;">
+                    <div class="form-field">
+                        <label for="imap-email">Adresse email</label>
+                        <input type="email" id="imap-email" required autocomplete="email" onblur="_autofillImapHosts()">
+                    </div>
+                    <div class="form-field">
+                        <label for="imap-password">Mot de passe</label>
+                        <input type="password" id="imap-password" required autocomplete="current-password">
+                        <p class="form-hint">Un mot de passe d'application est parfois requis (Gmail, Yahoo, iCloud
+                            avec double authentification).</p>
+                    </div>
+                    <div class="form-field">
+                        <label for="imap-protocol">Protocole</label>
+                        <select id="imap-protocol" onchange="_autofillImapHosts()">
+                            <option value="imap" selected>IMAP (recommandé — corbeille disponible)</option>
+                            <option value="pop3">POP3 (suppression définitive, sans corbeille)</option>
+                        </select>
+                    </div>
+
+                    <details class="imap-advanced">
+                        <summary>Options avancées (hôte / port)</summary>
+                        <div class="form-field">
+                            <label for="imap-host">Serveur (hôte)</label>
+                            <input type="text" id="imap-host" placeholder="préremplissage automatique si possible">
+                        </div>
+                        <div class="form-field">
+                            <label for="imap-port">Port</label>
+                            <input type="number" id="imap-port" placeholder="993">
+                        </div>
+                        <div class="form-field">
+                            <label for="imap-smtp-host">Serveur SMTP (pour le désabonnement par email)</label>
+                            <input type="text" id="imap-smtp-host" placeholder="préremplissage automatique si possible">
+                        </div>
+                        <div class="form-field">
+                            <label for="imap-smtp-port">Port SMTP</label>
+                            <input type="number" id="imap-smtp-port" placeholder="587">
+                        </div>
+                    </details>
+
+                    <p id="imap-connect-error" class="form-error hidden" role="alert"></p>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeImapModal()">Annuler</button>
+                <button type="button" class="btn-primary" id="imap-connect-submit"
+                    onclick="submitImapConnect(event)">Se connecter</button>
             </div>
         </div>
     </div>

@@ -1,1 +1,0 @@
-# MailScrub — core

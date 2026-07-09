@@ -36,6 +36,10 @@ az containerapp update --name mailscrub --resource-group mailscrub-rg --image gh
 
 ### Secrets (stored encrypted in Azure, never in the image)
 Managed via `az containerapp secret set` — see SESSION-HANDOFF.md for details.
+Depuis le multi-provider (badr) : `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET`
+(Azure App Registration, tenant `common`) s'ajoutent aux secrets Google existants,
+même mécanisme. IMAP/POP n'a besoin d'aucun secret applicatif (identifiants fournis
+par l'utilisateur au runtime).
 
 ### Google OAuth
 Authorized redirect URIs (Google Cloud Console → mailscrub-app → Credentials → MailScrub Web Client):
